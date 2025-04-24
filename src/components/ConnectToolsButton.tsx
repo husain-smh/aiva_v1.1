@@ -1,65 +1,121 @@
 'use client';
 
-import { FC, useState } from 'react';
-import { Link2 } from 'lucide-react';
-import { Button } from './ui/button';
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
+import { OpenAIToolSet } from 'composio-core';
 
-interface ConnectToolsButtonProps {
-  onToolsConnected?: (tools: any) => void;
+interface Service {
+  id: string;
+  name: string;
+  integration_id: string;
+  isConnected: boolean;
 }
 
-const ConnectToolsButton: FC<ConnectToolsButtonProps> = ({
-  onToolsConnected,
-}) => {
-  const [isConnecting, setIsConnecting] = useState(false);
+interface ConnectToolsButtonProps {
+  onToolsConnected: (tools: any) => void;
+}
 
-  const handleConnectTools = async () => {
-    setIsConnecting(true);
+export default function ConnectToolsButton({ onToolsConnected }: ConnectToolsButtonProps) {
+  const [services, setServices] = useState<Service[]>([
+    {
+      id: 'gmail',
+      name: 'Gmail',
+      integration_id: '66b951b0-e0bd-4179-83d6-ee2ff7a143e3',
+      isConnected: false,
+    }
+  ]);
 
+  const handleServiceToggle = async (service: Service) => {
     try {
-      // This is a mock of calling composio.connect()
-      // In a real application, you would use the actual composio SDK
-      console.log('Connecting tools...');
-      
-      // Simulate tool connection
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      
-      const tools = { name: 'Gmail', connected: true };
-      
-      // Call the API to save connected tools
-      const response = await fetch('/api/tools', {
+      const response = await fetch('/api/services/connect', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ tools }),
+        body: JSON.stringify({
+          service: service.id,
+          integration_id: service.integration_id,
+        }),
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to save connected tools');
-      }
+      const data = await response.json();
 
-      if (onToolsConnected) {
-        onToolsConnected(tools);
+      if (data.redirectUrl) {
+        // Open the OAuth window
+        const width = 600;
+        const height = 600;
+        const left = window.screenX + (window.outerWidth - width) / 2;
+        const top = window.screenY + (window.outerHeight - height) / 2;
+        
+        const popup = window.open(
+          data.redirectUrl,
+          'Connect Service',
+          `width=${width},height=${height},left=${left},top=${top}`
+        );
+
+        // Initialize Composio to wait for connection activation
+        const toolset = new OpenAIToolSet({
+          apiKey: process.env.NEXT_PUBLIC_COMPOSIO_API_KEY,
+        });
+
+        // Wait for the connection to become active
+        try {
+          const activeConnection = await toolset.connectedAccounts.waitUntilActive(data.connectionId, 180);
+          
+          // Update the service status
+          setServices(prev =>
+            prev.map(s =>
+              s.id === service.id ? { ...s, isConnected: true } : s
+            )
+          );
+          onToolsConnected({ [service.id]: true });
+          
+          // Close the popup
+          if (popup) {
+            popup.close();
+          }
+        } catch (error) {
+          console.error('Error waiting for connection activation:', error);
+          // Handle error - show message to user
+        }
       }
     } catch (error) {
-      console.error('Error connecting tools:', error);
-    } finally {
-      setIsConnecting(false);
+      console.error('Error connecting service:', error);
     }
   };
 
   return (
-    <Button
-      onClick={handleConnectTools}
-      disabled={isConnecting}
-      variant="secondary"
-      className="flex items-center gap-2"
-    >
-      <Link2 size={16} />
-      {isConnecting ? 'Connecting...' : 'Connect Tools'}
-    </Button>
+    <Sheet>
+      <SheetTrigger asChild>
+        <Button variant="outline">Connect Tools</Button>
+      </SheetTrigger>
+      <SheetContent>
+        <SheetHeader>
+          <SheetTitle>Available Services</SheetTitle>
+        </SheetHeader>
+        <div className="py-4">
+          {services.map((service) => (
+            <div
+              key={service.id}
+              className="flex items-center justify-between py-2"
+            >
+              <span className="font-medium">{service.name}</span>
+              <Switch
+                checked={service.isConnected}
+                onCheckedChange={() => handleServiceToggle(service)}
+              />
+            </div>
+          ))}
+        </div>
+      </SheetContent>
+    </Sheet>
   );
-};
-
-export default ConnectToolsButton; 
+} 
