@@ -1,20 +1,22 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Sidebar from '@/components/Sidebar';
 import ChatWindow, { MessageType } from '@/components/ChatWindow';
 import ConnectToolsButton from '@/components/ConnectToolsButton';
 
-export default function ChatById({ params }: { params: { id: string } }) {
+export default function ChatById() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const params = useParams();
+  const chatId = Array.isArray(params.id) ? params.id[0] : params.id as string;
+  
   const [messages, setMessages] = useState<MessageType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [sendingMessage, setSendingMessage] = useState(false);
   const [chatTitle, setChatTitle] = useState('');
-  const chatId = params.id;
 
   // Redirect to login if not authenticated
   useEffect(() => {

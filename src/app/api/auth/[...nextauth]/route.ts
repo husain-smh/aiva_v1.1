@@ -11,15 +11,23 @@ export const authOptions = {
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
+    async jwt({ token, user, account, profile }) {
+      // Initial sign in
+      if (account && user) {
+        await connectToDatabase();
+        // Find the user in our database
+        const dbUser = await User.findOne({ email: user.email });
+        if (dbUser) {
+          // Add the MongoDB _id to the token
+          token._id = dbUser._id.toString();
+        }
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.id = token.id as string;
+        // Pass the MongoDB _id to the session
+        session.user._id = token._id as string;
       }
       return session;
     },

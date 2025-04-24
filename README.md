@@ -4,7 +4,7 @@ A full-stack virtual assistant UI built with Next.js 14, Tailwind CSS, and TypeS
 
 ## Features
 
-- 🧠 AI assistant chat interface
+- 🧠 AI assistant chat interface powered by OpenAI GPT-4
 - 🔒 Google authentication
 - 💬 Chat history and multiple conversations
 - 🧩 External tools connection support
@@ -15,6 +15,7 @@ A full-stack virtual assistant UI built with Next.js 14, Tailwind CSS, and TypeS
 
 - **Frontend**: Next.js 14 (App Router), React, TailwindCSS, TypeScript
 - **Backend**: Next.js API Routes
+- **AI**: OpenAI GPT-4
 - **Authentication**: NextAuth.js with Google provider
 - **Database**: MongoDB with Mongoose
 - **Styling**: TailwindCSS
@@ -28,8 +29,9 @@ A full-stack virtual assistant UI built with Next.js 14, Tailwind CSS, and TypeS
    npm install
    ```
 3. Set up environment variables:
-   - Copy `.env.local` and fill in your own values
-   - You'll need to create a Google OAuth application and get MongoDB connection string
+   - Create a `.env.local` file in the root directory and add your configuration variables
+   - You'll need to create a Google OAuth application, get an OpenAI API key, and get MongoDB connection string
+   - See `OPENAI_SETUP.md` for details on setting up the OpenAI integration
 
 4. Run the development server:
    ```
@@ -58,7 +60,7 @@ This project uses NextAuth.js for authentication with Google provider. Users mus
 
 ## API Routes
 
-- `POST /api/message`: Send user message and get AI response
+- `POST /api/message`: Send user message and get AI response from OpenAI
 - `GET /api/chats`: Get user's chat history
 - `GET /api/chats/:id`: Get messages for a specific chat
 - `POST /api/tools`: Connect external tools
