@@ -9,41 +9,35 @@ import { User } from '@/models/User';
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession();
-    console.log('Complete session object:', JSON.stringify(session));
     
     if (!session || !session.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Log all available session.user properties
-    console.log('Session user email:', session.user.email);
-    console.log('Session user _id:', session.user._id);
-    console.log('All session.user properties:', Object.keys(session.user));
-
     const { content, chatId } = await request.json();
     await connectToDatabase();
 
-    // If _id is missing, try to find the user by email
-    if (!session.user._id && session.user.email) {
-      console.log('Attempting to find user by email as fallback');
+    // Get user ID from session or find by email if not available
+    let userId = session.user._id;
+    
+    // Only use the fallback mechanism if _id is missing
+    if (!userId && session.user.email) {
+      console.log('Message API - _id missing, using email fallback');
       const userFromDB = await User.findOne({ email: session.user.email });
       
       if (userFromDB) {
-        console.log('Found user in DB by email:', userFromDB._id);
-        // Assign the _id manually
-        session.user._id = userFromDB._id.toString();
+        userId = userFromDB._id.toString();
+      } else {
+        userId = session.user.email; // Last resort fallback
       }
+    } else {
+      console.log('Message API - Using session user._id:', userId);
     }
 
     let currentChatId = chatId;
 
     // If no chatId provided, create a new chat
     if (!currentChatId) {
-      console.log('Creating new chat with userId:', session.user._id);
-      
-      // Use email as fallback if _id is still not available
-      const userId = session.user._id || session.user.email;
-      
       const newChat = await Chat.create({
         userId: userId,
         title: content.substring(0, 30) + '...',

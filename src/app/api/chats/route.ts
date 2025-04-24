@@ -13,23 +13,21 @@ export async function GET(request: NextRequest) {
 
     await connectToDatabase();
 
-    // Log session details
-    console.log('Chats API - Session user email:', session.user.email);
-    console.log('Chats API - Session user _id:', session.user._id);
-    console.log('Chats API - All user properties:', Object.keys(session.user));
-
-    // If _id is missing, try to find the user by email
+    // Get user ID from session or find by email if not available
     let userId = session.user._id;
+    
+    // Only use the fallback mechanism if _id is missing
     if (!userId && session.user.email) {
-      console.log('Chats API - Attempting to find user by email as fallback');
+      console.log('Chats API - _id missing, using email fallback');
       const userFromDB = await User.findOne({ email: session.user.email });
       
       if (userFromDB) {
-        console.log('Chats API - Found user in DB by email:', userFromDB._id);
         userId = userFromDB._id.toString();
       } else {
-        userId = session.user.email;
+        userId = session.user.email; // Last resort fallback
       }
+    } else {
+      console.log('Chats API - Using session user._id:', userId);
     }
 
     const chats = await Chat.find({ userId: userId })

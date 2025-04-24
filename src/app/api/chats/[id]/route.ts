@@ -18,22 +18,21 @@ export async function GET(
     const chatId = params.id;
     await connectToDatabase();
 
-    // Log session details
-    console.log('Chat by ID - Session user email:', session.user.email);
-    console.log('Chat by ID - Session user _id:', session.user._id);
-
-    // If _id is missing, try to find the user by email
+    // Get user ID from session or find by email if not available
     let userId = session.user._id;
+    
+    // Only use the fallback mechanism if _id is missing
     if (!userId && session.user.email) {
-      console.log('Chat by ID - Attempting to find user by email as fallback');
+      console.log('Chat by ID API - _id missing, using email fallback');
       const userFromDB = await User.findOne({ email: session.user.email });
       
       if (userFromDB) {
-        console.log('Chat by ID - Found user in DB by email:', userFromDB._id);
         userId = userFromDB._id.toString();
       } else {
-        userId = session.user.email;
+        userId = session.user.email; // Last resort fallback
       }
+    } else {
+      console.log('Chat by ID API - Using session user._id:', userId);
     }
 
     // Verify the chat belongs to the user
