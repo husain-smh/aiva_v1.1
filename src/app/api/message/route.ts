@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
         // const langchainResponse = await runComposioAgentWithTools(content, semanticTools);
         
         assistantMessageText = langchainResponse.output;
-        toolResult = langchainResponse.steps.length > 0 ? langchainResponse.steps : null;
+        // toolResult = langchainResponse.steps.length > 0 ? langchainResponse.steps : null;
       } else {
         // Fallback to direct OpenAI if no semantic tools found
         console.log('No semantic tools found, using direct OpenAI approach...');

@@ -22,7 +22,7 @@ const toolset = new LangchainToolSet({
 
   // 1. Ensure user has connected their Gmail account
   const connection = await toolset.connectedAccounts.initiate({ appName: "gmail" });
-  console.log("Connection request:", connection);
+  // console.log("Connection request:", connection);
   // console.log(`Open this URL to authenticate: ${connection.redirectUrl}`);
   console.log('toolset - ', toolset);
   // 2. Fetch the actual tools for Gmail
@@ -38,10 +38,10 @@ const toolset = new LangchainToolSet({
     tools: tools,
     prompt,
   });
-  console.log("Agent created:", agent);
+  // console.log("Agent created:", agent);
 
   // 5. Wrap it in an executor (verbose logs all steps)
-  const agentExecutor = new AgentExecutor({ agent, tools, verbose: true });
+  const agentExecutor = new AgentExecutor({ agent, tools, verbose: false });
 
   // 6. Invoke the agent on the user’s input
   const response = await agentExecutor.invoke({ input });
