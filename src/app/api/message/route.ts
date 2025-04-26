@@ -7,6 +7,7 @@ import openai from '@/lib/openai';
 import { User } from '@/models/User';
 import { loadComposioTools, executeComposioTool, COMPOSIO_ACTIONS, findToolsByUseCase } from '@/lib/composio';
 import { runComposioAgentWithTools } from '@/lib/langchain-composio';
+import { executingTheTools } from '@/lib/langchain-composio-temp';
 
 export async function POST(request: NextRequest) {
   try {
@@ -81,7 +82,9 @@ export async function POST(request: NextRequest) {
         
         // 3. Pass prompt and semantic tools to LangChain for execution
         console.log('Executing with LangChain...');
-        const langchainResponse = await runComposioAgentWithTools(content, semanticTools);
+        
+        const langchainResponse = await executingTheTools(content, semanticTools);
+        // const langchainResponse = await runComposioAgentWithTools(content, semanticTools);
         
         assistantMessageText = langchainResponse.output;
         toolResult = langchainResponse.steps.length > 0 ? langchainResponse.steps : null;

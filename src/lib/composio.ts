@@ -16,6 +16,53 @@ export const COMPOSIO_ACTIONS = {
 };
 
 /**
+ * Get and log all connected accounts for a specific app
+ * @param appName The name of the app (e.g., "github", "gmail")
+ * @returns Array of connected accounts or null if error
+ */
+export async function getConnectedAccounts(appName: string) {
+  try {
+    console.log(`Fetching connected accounts for ${appName}...`);
+    
+    // Fetch connected accounts for this app
+    const connectedAccounts = await (toolset.client as any).connectedAccounts.list({
+      appNames: [appName]
+    });
+    
+    if (connectedAccounts && Array.isArray(connectedAccounts) && connectedAccounts.length > 0) {
+      console.log(`Found ${connectedAccounts.length} connected ${appName} accounts:`);
+      
+      // Log details about each account
+      connectedAccounts.forEach((account: any, index: number) => {
+        console.log(`--- Account ${index + 1} ---`);
+        // Log identifier (often email) if available
+        if (account.identifier) {
+          console.log(`Identifier: ${account.identifier}`);
+        }
+        // Log when it was connected
+        if (account.createdAt) {
+          console.log(`Connected on: ${new Date(account.createdAt).toLocaleString()}`);
+        }
+        // Log if it's the default account
+        if (account.isDefault) {
+          console.log(`Default account: Yes`);
+        }
+        console.log('-------------------');
+      });
+      
+      return connectedAccounts;
+    } else {
+      console.log(`No accounts connected for ${appName}`);
+      return null;
+    }
+  } catch (error) {
+    const err = error as Error;
+    console.error(`Error fetching connected accounts for ${appName}:`, err.message);
+    return null;
+  }
+}
+
+/**
  * Fetch Composio tool schemas for OpenAI
  * @param actions Array of action names to fetch
  * @returns Array of tool schemas formatted for OpenAI
@@ -107,12 +154,67 @@ export async function findToolsByUseCase(useCase: string, apps: string[] = [], a
  */
 export async function executeComposioTool(name: string, args: Record<string, any>) {
   try {
+    // Log which action is being executed
+    console.log(`Executing Composio action: ${name}`);
+    
+    // Get information about the connected account being used
+    try {
+      // Get the app name from the action name (usually the prefix before the first underscore)
+      const appName = name.split('_')[0].toLowerCase();
+      console.log(`Checking connected accounts for app: ${appName}`);
+      
+      // Fetch connected accounts for this app using the client's API
+      // Note: Using any to bypass type issues with the Composio SDK
+      const connectedAccounts = await (toolset.client as any).connectedAccounts.list({
+        appNames: [appName]
+      });
+      
+      // Safely check and log connected accounts
+      if (connectedAccounts && Array.isArray(connectedAccounts) && connectedAccounts.length > 0) {
+        // Log information about the account(s)
+        console.log(`Found ${connectedAccounts.length} connected accounts for ${appName}`);
+        
+        // Log details about each account (safely, without exposing sensitive info)
+        connectedAccounts.forEach((account: any, index: number) => {
+          console.log(`Account ${index + 1}:`);
+          // Log identifier (often email) if available
+          if (account.identifier) {
+            console.log(`- Identifier: ${account.identifier}`);
+          }
+          // Log when it was connected
+          if (account.createdAt) {
+            console.log(`- Connected on: ${new Date(account.createdAt).toLocaleString()}`);
+          }
+          // Log if it's the default account
+          if (account.isDefault) {
+            console.log(`- This is the default account`);
+          }
+        });
+        
+        // Indicate which account will be used (typically the default or first one)
+        const activeAccount = connectedAccounts.find((acc: any) => acc.isDefault) || connectedAccounts[0];
+        if (activeAccount && activeAccount.identifier) {
+          console.log(`Using account: ${activeAccount.identifier}`);
+        } else {
+          console.log('Using account: Details not available');
+        }
+      } else {
+        console.log(`No connected accounts found for ${appName}`);
+      }
+    } catch (error) {
+      // Properly type the error
+      const accountError = error as Error;
+      console.log(`Unable to fetch account information: ${accountError.message}`);
+    }
+    
     // Based on Composio TypeScript documentation
     // Use the client directly to execute the action
     const result = await toolset.client.actions.execute({
       actionName: name,
       requestBody: args
     });
+    
+    console.log(`Action ${name} executed successfully`);
     
     return {
       success: true,
