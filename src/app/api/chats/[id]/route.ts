@@ -60,4 +60,110 @@ export async function GET(
       { status: 500 }
     );
   }
+}
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getServerSession();
+    if (!session || !session.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id: chatId } = await params;
+    const { title } = await request.json();
+
+    if (!title || typeof title !== 'string') {
+      return NextResponse.json(
+        { error: 'Title is required and must be a string' },
+        { status: 400 }
+      );
+    }
+
+    await connectToDatabase();
+
+    // Get user ID from session or find by email if not available
+    let userId = session.user._id;
+    
+    if (!userId && session.user.email) {
+      const userFromDB = await User.findOne({ email: session.user.email });
+      if (userFromDB) {
+        userId = userFromDB._id.toString();
+      } else {
+        userId = session.user.email;
+      }
+    }
+
+    // Verify the chat belongs to the user and update it
+    const chat = await Chat.findOneAndUpdate(
+      {
+        _id: chatId,
+        userId: userId,
+      },
+      { title },
+      { new: true }
+    );
+
+    if (!chat) {
+      return NextResponse.json({ error: 'Chat not found' }, { status: 404 });
+    }
+
+    return NextResponse.json(chat);
+  } catch (error) {
+    console.error('Error renaming chat:', error);
+    return NextResponse.json(
+      { error: 'Error renaming chat' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getServerSession();
+    if (!session || !session.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id: chatId } = await params;
+    await connectToDatabase();
+
+    // Get user ID from session or find by email if not available
+    let userId = session.user._id;
+    
+    if (!userId && session.user.email) {
+      const userFromDB = await User.findOne({ email: session.user.email });
+      if (userFromDB) {
+        userId = userFromDB._id.toString();
+      } else {
+        userId = session.user.email;
+      }
+    }
+
+    // Delete all messages in the chat
+    await Message.deleteMany({ chatId });
+
+    // Delete the chat
+    const result = await Chat.findOneAndDelete({
+      _id: chatId,
+      userId: userId,
+    });
+
+    if (!result) {
+      return NextResponse.json({ error: 'Chat not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting chat:', error);
+    return NextResponse.json(
+      { error: 'Error deleting chat' },
+      { status: 500 }
+    );
+  }
 } 

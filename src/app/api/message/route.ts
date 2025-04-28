@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
 
     try {
       // Define the apps we want to search across (apps user has connected)
-      const supportedApps = ["github", "gmail", "whatsapp"];
+      const supportedApps = ["github", "gmail", "whatsapp", "googlecalendar", "googledrive", "googledocs","yousearch","linkedin","slack","jira","googlesheets"];
       let assistantMessageText = '';
       let toolResult = null;
       

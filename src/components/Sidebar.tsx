@@ -2,10 +2,16 @@
 
 import { FC, useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { PlusCircle, MessageSquare, LogOut, ChevronLeft, ChevronRight } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { PlusCircle, MessageSquare, LogOut, ChevronLeft, ChevronRight, MoreVertical, Pencil, Trash2 } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import { Button } from './ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu';
 
 interface ChatItem {
   _id: string;
@@ -22,10 +28,13 @@ interface SidebarProps {
 }
 
 const Sidebar: FC<SidebarProps> = ({ user }) => {
-  const [chats, setChats] = useState<ChatItem[]>([]);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [chats, setChats] = useState<ChatItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [editingChatId, setEditingChatId] = useState<string | null>(null);
+  const [newTitle, setNewTitle] = useState('');
   const pathname = usePathname();
+  const router = useRouter();
 
   useEffect(() => {
     const fetchChats = async () => {
@@ -49,8 +58,51 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
     setIsCollapsed(!isCollapsed);
   };
 
-  const handleSignOut = async () => {
-    await signOut({ callbackUrl: '/' });
+  const handleRename = async (chatId: string) => {
+    try {
+      const response = await fetch(`/api/chats/${chatId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ title: newTitle }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to rename chat');
+      }
+
+      setChats(chats.map(chat => 
+        chat._id === chatId ? { ...chat, title: newTitle } : chat
+      ));
+      setEditingChatId(null);
+      setNewTitle('');
+    } catch (error) {
+      console.error('Error renaming chat:', error);
+    }
+  };
+
+  const handleDelete = async (chatId: string) => {
+    if (!confirm('Are you sure you want to delete this chat?')) return;
+
+    try {
+      const response = await fetch(`/api/chats/${chatId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete chat');
+      }
+
+      setChats(chats.filter(chat => chat._id !== chatId));
+      
+      // If we're currently viewing the deleted chat, redirect to new chat
+      if (pathname === `/chat/${chatId}`) {
+        router.push('/chat');
+      }
+    } catch (error) {
+      console.error('Error deleting chat:', error);
+    }
   };
 
   return (
@@ -87,50 +139,93 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
         ) : (
           <div className="space-y-1">
             {chats.map((chat) => (
-              <Link
+              <div
                 key={chat._id}
-                href={`/chat/${chat._id}`}
-                className={`flex items-center gap-2 p-2 rounded-lg hover:bg-sidebar-accent transition-colors ${
+                className={`group flex items-center justify-between p-2 rounded-lg hover:bg-sidebar-accent transition-colors ${
                   pathname === `/chat/${chat._id}` ? 'bg-sidebar-accent' : ''
                 }`}
               >
-                <MessageSquare size={20} />
+                <Link
+                  href={`/chat/${chat._id}`}
+                  className="flex items-center gap-2 flex-1"
+                >
+                  <MessageSquare size={20} />
+                  {!isCollapsed && (
+                    editingChatId === chat._id ? (
+                      <input
+                        type="text"
+                        value={newTitle}
+                        onChange={(e) => setNewTitle(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            handleRename(chat._id);
+                          } else if (e.key === 'Escape') {
+                            setEditingChatId(null);
+                            setNewTitle('');
+                          }
+                        }}
+                        onBlur={() => {
+                          if (newTitle.trim()) {
+                            handleRename(chat._id);
+                          } else {
+                            setEditingChatId(null);
+                            setNewTitle('');
+                          }
+                        }}
+                        className="bg-transparent border-none outline-none w-full"
+                        autoFocus
+                      />
+                    ) : (
+                      <span className="truncate">{chat.title}</span>
+                    )
+                  )}
+                </Link>
                 {!isCollapsed && (
-                  <span className="truncate">{chat.title}</span>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <MoreVertical size={16} />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setEditingChatId(chat._id);
+                          setNewTitle(chat.title);
+                        }}
+                      >
+                        <Pencil className="mr-2 h-4 w-4" />
+                        <span>Rename</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleDelete(chat._id)}
+                        className="text-destructive"
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        <span>Delete</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 )}
-              </Link>
+              </div>
             ))}
           </div>
         )}
       </div>
 
       <div className="p-4 border-t border-border">
-        <div className="flex items-center gap-2">
-          {!isCollapsed && (
-            <>
-              {user.image && (
-                <img
-                  src={user.image}
-                  alt={user.name || 'User'}
-                  className="w-8 h-8 rounded-full"
-                />
-              )}
-              <div className="flex-1 overflow-hidden">
-                <p className="font-medium truncate">{user.name}</p>
-                <p className="text-sm text-muted-foreground truncate">{user.email}</p>
-              </div>
-            </>
-          )}
-          <Button
-            onClick={handleSignOut}
-            variant="ghost"
-            size="icon"
-            className="rounded-full"
-            title="Sign out"
-          >
-            <LogOut size={20} />
-          </Button>
-        </div>
+        <Button
+          variant="ghost"
+          className="w-full justify-start"
+          onClick={() => signOut()}
+        >
+          <LogOut className="mr-2 h-4 w-4" />
+          {!isCollapsed && <span>Logout</span>}
+        </Button>
       </div>
     </div>
   );
