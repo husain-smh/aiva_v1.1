@@ -53,7 +53,7 @@ The flow follows these specific steps:
 const userPrompt = "Star the repository composiohq/composio on GitHub";
 
 // 2. Find semantic tools needed based on the prompt
-const supportedApps = ["github", "gmail"];
+const supportedApps = ["github", "gmail","whatsapp"];
 const semanticTools = await findToolsByUseCase(userPrompt, supportedApps, true);
 
 // 3. Pass prompt and semantic tools to LangChain for execution

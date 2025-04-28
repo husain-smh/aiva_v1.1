@@ -32,13 +32,13 @@ export async function POST(req: Request) {
       entityId: session.user.email,
       redirectUri: `${process.env.NEXT_PUBLIC_BASE_URL}/chat`,
     });
-
-    if (!connectionRequest?.redirectUrl) {
-      return NextResponse.json(
-        { error: 'Failed to get redirect URL from Composio' },
-        { status: 500 }
-      );
-    }
+    console.log(connectionRequest )
+    // if (!connectionRequest?.redirectUrl) {
+    //   return NextResponse.json(
+    //     { error: 'Failed to get redirect URL from Composio' },
+    //     { status: 500 }
+    //   );
+    // }
 
     if (!connectionRequest?.connectedAccountId) {
       return NextResponse.json(

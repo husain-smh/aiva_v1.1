@@ -197,7 +197,7 @@ export async function runComposioAgentWithTools(input: string, semanticTools: an
 
 /**
  * Initialize a connection with a specific app
- * @param appName The name of the app to connect (e.g., "github", "gmail")
+ * @param appName The name of the app to connect (e.g., "github", "gmail", "whatsapp")
  * @returns The connection request with redirect URL
  */
 export async function initiateConnection(appName: string) {

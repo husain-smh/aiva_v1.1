@@ -38,6 +38,18 @@ export default function ConnectToolsButton({ onToolsConnected }: ConnectToolsBut
       name: 'Gmail',
       integration_id: '66b951b0-e0bd-4179-83d6-ee2ff7a143e3',
       isConnected: false,
+    },
+    {
+      id: 'whatsapp',
+      name: 'WhatsApp',
+      integration_id: '8987897f-f1db-4b4e-a625-4ee51d9c9b98',
+      isConnected: false,
+    },
+    {
+      id: 'github',
+      name: 'GitHub',
+      integration_id: '3a08be07-a15e-4417-962b-037c2b9913f6',
+      isConnected: false,
     }
   ]);
 
@@ -67,7 +79,7 @@ export default function ConnectToolsButton({ onToolsConnected }: ConnectToolsBut
 
       const data = await connectResponse.json();
 
-      if (!data.redirectUrl || !data.connectionId) {
+      if (!data.connectionId) {
         console.error('Invalid response data:', data);
         throw new Error('Invalid response from server');
       }
@@ -78,11 +90,18 @@ export default function ConnectToolsButton({ onToolsConnected }: ConnectToolsBut
       const left = window.screenX + (window.outerWidth - width) / 2;
       const top = window.screenY + (window.outerHeight - height) / 2;
       
-      const popup = window.open(
-        data.redirectUrl,
-        'Connect Service',
-        `width=${width},height=${height},left=${left},top=${top}`
-      );
+      let popup: Window | null = null;
+
+if (data.redirectUrl) {
+  // Only open popup if redirect URL exists
+  popup = window.open(
+    data.redirectUrl,
+    'Connect Service',
+    `width=${width},height=${height},left=${left},top=${top}`
+  );
+} else {
+  console.log('No redirect needed, connection might be instant.');
+}
 
       // Wait for the connection to become active
       try {

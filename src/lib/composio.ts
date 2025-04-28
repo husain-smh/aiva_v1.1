@@ -9,6 +9,11 @@ export const COMPOSIO_ACTIONS = {
   GMAIL_SEND_AN_EMAIL: "GMAIL_SEND_AN_EMAIL",
   GMAIL_GET_CONTACTS: "GMAIL_GET_CONTACTS",
   
+  // WhatsApp actions
+  WHATSAPP_SEND_MESSAGE: "WHATSAPP_SEND_MESSAGE",
+  WHATSAPP_GET_CONVERSATIONS: "WHATSAPP_GET_CONVERSATIONS",
+  WHATSAPP_GET_MESSAGES: "WHATSAPP_GET_MESSAGES",
+  
   // GitHub actions
   GITHUB_STAR_A_REPOSITORY_FOR_THE_AUTHENTICATED_USER: "GITHUB_STAR_A_REPOSITORY_FOR_THE_AUTHENTICATED_USER",
   GITHUB_GET_THE_AUTHENTICATED_USER: "GITHUB_GET_THE_AUTHENTICATED_USER",
@@ -106,7 +111,7 @@ export async function loadToolsByApp(apps: string[] = []) {
  * @param advanced Whether to search for multiple tools that might work together
  * @returns Array of relevant tool schemas
  */
-export async function findToolsByUseCase(useCase: string, apps: string[] = [], advanced: boolean = true) {
+export async function findToolsByUseCase(useCase: string, apps: string[], advanced: boolean = true) {
   try {
     // Create params with required fields
     // The Composio API requires apps to be an array even if empty
@@ -226,5 +231,81 @@ export async function executeComposioTool(name: string, args: Record<string, any
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
     };
+  }
+}
+
+/**
+ * Find Gmail tools based on use case
+ * @param useCase specific use case for Gmail (e.g., "sendEmail", "getContacts")
+ * @returns Array of Gmail action IDs matching the use case
+ */
+export function findGmailTools(useCase?: string) {
+  // If no specific use case, return all Gmail actions
+  if (!useCase) {
+    return Object.keys(COMPOSIO_ACTIONS)
+      .filter(key => key.startsWith('GMAIL_'))
+      .map(key => COMPOSIO_ACTIONS[key as keyof typeof COMPOSIO_ACTIONS]);
+  }
+
+  // Map use case to specific Gmail actions
+  switch (useCase.toLowerCase()) {
+    case 'sendemail':
+      return [COMPOSIO_ACTIONS.GMAIL_SEND_AN_EMAIL];
+    case 'getcontacts':
+      return [COMPOSIO_ACTIONS.GMAIL_GET_CONTACTS];
+    default:
+      return [];
+  }
+}
+
+/**
+ * Find WhatsApp tools based on use case
+ * @param useCase specific use case for WhatsApp (e.g., "sendMessage", "getConversations")
+ * @returns Array of WhatsApp action IDs matching the use case
+ */
+export function findWhatsAppTools(useCase?: string) {
+  // If no specific use case, return all WhatsApp actions
+  if (!useCase) {
+    return Object.keys(COMPOSIO_ACTIONS)
+      .filter(key => key.startsWith('WHATSAPP_'))
+      .map(key => COMPOSIO_ACTIONS[key as keyof typeof COMPOSIO_ACTIONS]);
+  }
+
+  // Map use case to specific WhatsApp actions
+  switch (useCase.toLowerCase()) {
+    case 'sendmessage':
+      return [COMPOSIO_ACTIONS.WHATSAPP_SEND_MESSAGE];
+    case 'getconversations':
+      return [COMPOSIO_ACTIONS.WHATSAPP_GET_CONVERSATIONS];
+    case 'getmessages':
+      return [COMPOSIO_ACTIONS.WHATSAPP_GET_MESSAGES];
+    default:
+      return [];
+  }
+}
+
+/**
+ * Find GitHub tools based on use case
+ * @param useCase specific use case for GitHub (e.g., "starRepository", "getUser", "listRepositories")
+ * @returns Array of GitHub action IDs matching the use case
+ */
+export function findGitHubTools(useCase?: string) {
+  // If no specific use case, return all GitHub actions
+  if (!useCase) {
+    return Object.keys(COMPOSIO_ACTIONS)
+      .filter(key => key.startsWith('GITHUB_'))
+      .map(key => COMPOSIO_ACTIONS[key as keyof typeof COMPOSIO_ACTIONS]);
+  }
+
+  // Map use case to specific GitHub actions
+  switch (useCase.toLowerCase()) {
+    case 'starrepository':
+      return [COMPOSIO_ACTIONS.GITHUB_STAR_A_REPOSITORY_FOR_THE_AUTHENTICATED_USER];
+    case 'getuser':
+      return [COMPOSIO_ACTIONS.GITHUB_GET_THE_AUTHENTICATED_USER];
+    case 'listrepositories':
+      return [COMPOSIO_ACTIONS.GITHUB_LIST_REPOSITORIES_FOR_THE_AUTHENTICATED_USER];
+    default:
+      return [];
   }
 }

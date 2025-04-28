@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
 
     try {
       // Define the apps we want to search across (apps user has connected)
-      const supportedApps = ["gmail", "github", "notion", "slack", "jira"];
+      const supportedApps = ["github", "gmail", "whatsapp"];
       let assistantMessageText = '';
       let toolResult = null;
       
@@ -149,7 +149,7 @@ async function processWithOpenAI(content: string, messages: any[]) {
   
   try {
     // Define the apps we want to search across
-    const supportedApps = ["gmail", "github", "notion", "slack", "jira"];
+    const supportedApps = ["gmail", "github", "whatsapp"];
     
     // Use semantic search to find relevant tools
     const semanticTools = await findToolsByUseCase(
