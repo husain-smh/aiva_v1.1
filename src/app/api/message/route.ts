@@ -9,6 +9,37 @@ import { loadComposioTools, executeComposioTool, COMPOSIO_ACTIONS, findToolsByUs
 import { runComposioAgentWithTools } from '@/lib/langchain-composio';
 import { executingTheTools } from '@/lib/langchain-composio-temp';
 
+/**
+ * Generate a concise three-word title from the first message
+ * @param message User's first message
+ * @returns A three-word summary as the chat title
+ */
+async function generateChatTitle(message: string): Promise<string> {
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'gpt-3.5-turbo',
+      messages: [
+        {
+          role: 'system',
+          content: 'Summarize the following message in exactly three words to create a concise chat title. Use only three words separated by spaces.'
+        },
+        {
+          role: 'user',
+          content: message
+        }
+      ],
+      temperature: 0.7,
+      max_tokens: 20
+    });
+
+    const title = response.choices[0].message.content?.trim() || 'New Chat';
+    return title;
+  } catch (error) {
+    console.error('Error generating chat title:', error);
+    return 'New Chat';
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession();
@@ -42,9 +73,12 @@ export async function POST(request: NextRequest) {
 
     // If no chatId provided, create a new chat
     if (!currentChatId) {
+      // Generate title using AI
+      const title = await generateChatTitle(content);
+      
       const newChat = await Chat.create({
         userId: userId,
-        title: content.substring(0, 30) + '...',
+        title: title,
       });
       currentChatId = newChat._id.toString();
     }
