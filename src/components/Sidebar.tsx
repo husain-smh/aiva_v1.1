@@ -3,7 +3,7 @@
 import { FC, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { PlusCircle, MessageSquare, LogOut, ChevronLeft, ChevronRight, MoreVertical, Pencil, Trash2 } from 'lucide-react';
+import { PlusCircle, MessageSquare, LogOut, ChevronLeft, ChevronRight, MoreVertical, Pencil, Trash2, User, Settings } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import { Button } from './ui/button';
 import {
@@ -12,6 +12,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
+import { GlassCard } from './ui/GlassCard';
 
 interface ChatItem {
   _id: string;
@@ -149,7 +150,6 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
                   href={`/chat/${chat._id}`}
                   className="flex items-center gap-2 flex-1"
                 >
-                  <MessageSquare size={20} />
                   {!isCollapsed && (
                     editingChatId === chat._id ? (
                       <input
@@ -218,14 +218,24 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
       </div>
 
       <div className="p-4 border-t border-border">
-        <Button
-          variant="ghost"
-          className="w-full justify-start"
-          onClick={() => signOut()}
-        >
-          <LogOut className="mr-2 h-4 w-4" />
-          {!isCollapsed && <span>Logout</span>}
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="rounded-full p-2">
+              <User size={24} />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem>
+              <User className="mr-2 h-4 w-4" /> Profile
+            </DropdownMenuItem>
+            <DropdownMenuItem>
+              <Settings className="mr-2 h-4 w-4" /> Settings
+            </DropdownMenuItem>
+            <DropdownMenuItem className="text-destructive">
+              <LogOut className="mr-2 h-4 w-4" /> Logout
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );

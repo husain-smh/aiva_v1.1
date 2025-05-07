@@ -8,7 +8,7 @@ interface MessageProps {
   content: string;
 }
 
-const Message: FC<MessageProps> = ({ role, content }) => {
+export default function Message({ role, content }) {
   const isUser = role === 'user';
   const [showCopy, setShowCopy] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -24,36 +24,27 @@ const Message: FC<MessageProps> = ({ role, content }) => {
   };
 
   return (
-    <div 
+    <div
       className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'}`}
       onMouseEnter={() => setShowCopy(true)}
       onMouseLeave={() => setShowCopy(false)}
+      style={{ position: 'relative' }}
     >
       <div
-        className={`flex max-w-[80%] rounded-lg p-4 my-2 relative group ${
-          isUser
-            ? 'bg-primary text-primary-foreground rounded-br-none'
-            : 'bg-card text-card-foreground rounded-bl-none border border-border'
-        }`}
+        className={`relative rounded-lg p-3 text-sm chat-bubble-text break-words whitespace-pre-wrap ${isUser ? 'bg-primary text-primary-foreground' : 'bg-muted'} min-w-[40px] max-w-[90%]'}`}
       >
-        <p className="whitespace-pre-wrap">{content}</p>
-        {showCopy && (
-          <button
-            onClick={handleCopy}
-            className={`absolute top-2 right-2 p-1 rounded-md transition-opacity ${
-              isUser ? 'hover:bg-primary-foreground/20' : 'hover:bg-card-foreground/20'
-            }`}
-            title={copied ? "Copied!" : "Copy to clipboard"}
-          >
-            <Copy 
-              size={16} 
-              className={isUser ? 'text-primary-foreground/70' : 'text-card-foreground/70'} 
-            />
-          </button>
-        )}
+        {content}
       </div>
+      {showCopy && (
+        <button
+          onClick={handleCopy}
+          className="absolute -bottom-2 right-0 p-1 rounded-md hover:bg-primary/20 transition-opacity translate-y-full"
+          title={copied ? 'Copied!' : 'Copy to clipboard'}
+          style={{ zIndex: 2 }}
+        >
+          <Copy size={14} className="opacity-70" />
+        </button>
+      )}
     </div>
   );
-};
-
-export default Message; 
+} 
