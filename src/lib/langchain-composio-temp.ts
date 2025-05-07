@@ -7,22 +7,22 @@ import { findToolsByUseCase } from "./composio";
 import { getServerSession } from "next-auth";
 
 // Helper function: Find apps from semantic tools
-function findAppsFromSemanticTools(semanticTools: any[]): string[] {
-  const apps = semanticTools.map(tool => {
-    const functionName = tool.function.name; // example: "GITHUB_CREATE_A_REPOSITORY_USING_A_TEMPLATE"
-    const appName = functionName.split('_')[0]; // take the part before first "_"
-    return appName.toLowerCase(); // "GITHUB" -> "github"
-  });
+// function findAppsFromSemanticTools(semanticTools: any[]): string[] {
+//   const apps = semanticTools.map(tool => {
+//     const functionName = tool.function.name; // example: "GITHUB_CREATE_A_REPOSITORY_USING_A_TEMPLATE"
+//     const appName = functionName.split('_')[0]; // take the part before first "_"
+//     return appName.toLowerCase(); // "GITHUB" -> "github"
+//   });
 
-  return Array.from(new Set(apps)); // remove duplicates
-}
+//   return Array.from(new Set(apps)); // remove duplicates
+// }
 
 export async function executingTheTools(
   input: string,
-  semanticTools: any[] // New parameter with default value
+  semanticTools: string[] // New parameter with default value
 ) {
    // 1. Detect apps needed
-   const serviceType = findAppsFromSemanticTools(semanticTools);
+  //  const serviceType = findAppsFromSemanticTools(semanticTools);
 
   // console.log("User input:", input);
   console.log("Semantic tools pre-filtered:", semanticTools);
@@ -32,7 +32,7 @@ const toolset = new LangchainToolSet({
   entityId: session?.user.email ?? undefined,
 });
 
-  for (const app of serviceType){
+  for (const app of semanticTools){
     try {
       const connection = await toolset.connectedAccounts.initiate({ appName: app });
       // if (connection?.needsToConnect) {
@@ -43,21 +43,21 @@ const toolset = new LangchainToolSet({
     }
   console.log('toolset - ', toolset);
   }
-  // 2. Fetch the actual tools for the service
-  const allTools = await toolset.getTools({ apps: serviceType });
+  // 2. Fetch the actual tools for the selected apps
+  const allTools = await toolset.getTools({ apps: semanticTools });
   
 
   // 3. Build a ChatPromptTemplate with exactly three roles:
   const prompt = await pull<ChatPromptTemplate>("hwchase17/openai-functions-agent");
-  const neededFunctionNames = semanticTools.map(tool => tool.function.name);
 
-const tools = allTools.filter(tool => 
-  neededFunctionNames.includes(tool.name)
-);
+  // semanticTools is now [<appName>,…], so you no longer extract .function.name off it.
+  // Instead just hand the full set of tools back to the agent:
+  const tools = allTools;
+
   // 4. Create the OpenAI-Functions agent
   const agent = await createOpenAIFunctionsAgent({
     llm,
-    tools: tools,
+    tools,
     prompt,
   });
   // console.log("Agent created:", agent);

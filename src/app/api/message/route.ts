@@ -39,6 +39,33 @@ async function generateChatTitle(message: string): Promise<string> {
     return 'New Chat';
   }
 }
+async function findappsfromprompt(message: string, supportedApps: string[]): Promise<string> {
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'gpt-3.5-turbo',
+      messages: [
+        {
+          role: 'system',
+          content: 'here is the list of apps you can use: ' + supportedApps.join(', ') + '. Please return the list of apps in array format separated by commas. If you cannot find any apps, return empty array "[]".'
+        },
+        {
+          role: 'user',
+          content: message
+        }
+      ],
+      temperature: 0.7,
+      max_tokens: 20
+    });
+
+    const relevantApps = response.choices[0].message.content?.trim() || '[]';
+    console.log("this is the response of apps acc to ai that are to be used",response.choices[0].message.content?.trim())
+    return relevantApps;
+  } catch (error) {
+    console.error('Error finding apps from prompt:', error);
+    return '[]';
+  }
+}
+
 
 export async function POST(request: NextRequest) {
   try {
@@ -109,20 +136,41 @@ export async function POST(request: NextRequest) {
       
       // 2. Find semantic tools needed based on the prompt
       console.log('Finding semantic tools for prompt...');
-      const semanticTools = await findToolsByUseCase(content, supportedApps, true);
+      // const semanticTools = await findToolsByUseCase(content, supportedApps, true);
+      const semanticTools = await findappsfromprompt(content, supportedApps);
+      let parsedSemanticTools: string[] = [];
+      if (typeof semanticTools === "string") {
+        try {
+          // Try parsing the string as JSON
+          parsedSemanticTools = JSON.parse(semanticTools);
+          
+          // Ensure the result is an array (if it's not, set an empty array)
+          if (!Array.isArray(parsedSemanticTools)) {
+            console.error("Parsed result is not an array, defaulting to empty array.");
+            parsedSemanticTools = [];
+          }
+        } catch (error) {
+          console.error("Error parsing semanticTools string:", error);
+        }
+      } else if (Array.isArray(semanticTools)) {
+        // If already an array, just assign it
+        parsedSemanticTools = semanticTools;
+      } else {
+        // If it's neither a string nor an array, fall back to an empty array
+        console.error("Unexpected type for semanticTools, defaulting to empty array.");
+        parsedSemanticTools = [];
+      }
       
-      if (semanticTools && semanticTools.length > 0) {
-        console.log(`Found ${semanticTools.length} relevant tools for prompt`);
+      if (parsedSemanticTools.length > 0) {
+        console.log(`Found ${parsedSemanticTools.length} relevant tools for prompt`);
         
         // 3. Pass prompt and semantic tools to LangChain for execution
         console.log('Executing with LangChain...');
         
-        const langchainResponse = await executingTheTools(content, semanticTools);
-        // const langchainResponse = await runComposioAgentWithTools(content, semanticTools);
-        
+        const langchainResponse = await executingTheTools(content, parsedSemanticTools);
         assistantMessageText = langchainResponse.output;
-        // toolResult = langchainResponse.steps.length > 0 ? langchainResponse.steps : null;
-      } else {
+      } 
+      else {
         // Fallback to direct OpenAI if no semantic tools found
         console.log('No semantic tools found, using direct OpenAI approach...');
         const openAIResponse = await processWithOpenAI(content, messages);
