@@ -5,6 +5,7 @@ import { LangchainToolSet } from "composio-core";
 import { pull } from "langchain/hub";
 import { findToolsByUseCase } from "./composio";
 import { getServerSession } from "next-auth";
+import { ConsoleCallbackHandler } from "@langchain/core/tracers/console";
 
 // Helper function: Find apps from semantic tools
 // function findAppsFromSemanticTools(semanticTools: any[]): string[] {
@@ -19,7 +20,8 @@ import { getServerSession } from "next-auth";
 
 export async function executingTheTools(
   input: string,
-  semanticTools: string[] // New parameter with default value
+  semanticTools: string[],
+  options?: { callbacks?: any[] }
 ) {
    // 1. Detect apps needed
   //  const serviceType = findAppsFromSemanticTools(semanticTools);
@@ -63,7 +65,12 @@ const toolset = new LangchainToolSet({
   // console.log("Agent created:", agent);
 
   // 5. Wrap it in an executor (verbose logs all steps)
-  const agentExecutor = new AgentExecutor({ agent, tools, verbose: false });
+  const agentExecutor = new AgentExecutor({ 
+    agent, 
+    tools, 
+    verbose: false,
+    callbacks: options?.callbacks || [new ConsoleCallbackHandler()]
+  });
 
   // 6. Invoke the agent on the user's input
   const response = await agentExecutor.invoke({ input });

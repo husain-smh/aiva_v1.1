@@ -167,7 +167,7 @@ export async function POST(request: NextRequest) {
         // 3. Pass prompt and semantic tools to LangChain for execution
         console.log('Executing with LangChain...');
         
-        const langchainResponse = await executingTheTools(content, parsedSemanticTools);
+        const langchainResponse = await executingTheTools(content, parsedSemanticTools, {});
         assistantMessageText = langchainResponse.output;
       } 
       else {
