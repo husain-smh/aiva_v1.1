@@ -37,12 +37,10 @@ export default function ChatPage() {
   return (
     <div className="flex h-full">
       <Sidebar user={session.user} />
-      <div className="flex flex-col flex-1 h-full">
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <h1 className="text-xl font-bold">New Chat</h1>
-          <ConnectToolsButton onToolsConnected={handleToolsConnected} />
-        </div>
-        {/* Optionally, you can add a welcome message or instructions here */}
+      <div className="flex flex-col flex-1 h-full items-center justify-center">
+        <span className="text-2xl font-semibold text-foreground text-center">
+          Hi {session.user?.name || 'there'}, how may I help?
+        </span>
       </div>
     </div>
   );
