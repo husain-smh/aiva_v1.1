@@ -106,6 +106,25 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
     }
   };
 
+  const handleNewChat = async () => {
+    try {
+      const response = await fetch('/api/message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: 'New chat' }),
+      });
+      if (!response.ok) throw new Error('Failed to create new chat');
+      const data = await response.json();
+      if (data.chatId) {
+        router.push(`/chat/${data.chatId}`);
+      } else if (data._id) {
+        router.push(`/chat/${data._id}`);
+      }
+    } catch (error) {
+      console.error('Error creating new chat:', error);
+    }
+  };
+
   return (
     <div
       className={`flex flex-col h-full border-r border-border bg-sidebar text-sidebar-foreground transition-all duration-300 ${
@@ -125,13 +144,13 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
       </div>
 
       <div className="flex-1 overflow-y-auto p-2">
-        <Link
-          href="/chat"
-          className="flex items-center gap-2 p-2 mb-2 rounded-lg hover:bg-sidebar-accent text-sidebar-foreground transition-colors"
+        <button
+          onClick={handleNewChat}
+          className="flex items-center gap-2 p-2 mb-2 rounded-lg hover:bg-sidebar-accent text-sidebar-foreground transition-colors w-full"
         >
           <PlusCircle size={20} />
           {!isCollapsed && <span>New Chat</span>}
-        </Link>
+        </button>
 
         {isLoading ? (
           <div className="flex justify-center p-4">
@@ -198,15 +217,13 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
                           setNewTitle(chat.title);
                         }}
                       >
-                        <Pencil className="mr-2 h-4 w-4" />
-                        <span>Rename</span>
+                        <Pencil size={16} className="mr-2" /> Rename
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={() => handleDelete(chat._id)}
                         className="text-destructive"
                       >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        <span>Delete</span>
+                        <Trash2 size={16} className="mr-2" /> Delete
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -217,22 +234,32 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
         )}
       </div>
 
-      <div className="p-4 border-t border-border">
+      {/* User Info at the bottom */}
+      <div className="p-4 border-t border-border mt-auto">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="rounded-full p-2">
-              <User size={24} />
-            </Button>
+            <button className="flex items-center gap-3 p-2 rounded-lg hover:bg-sidebar-accent w-full cursor-pointer">
+              <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-lg font-bold text-primary-foreground">
+                {user?.name ? user.name[0] : '?'}
+              </div>
+              {!isCollapsed && (
+                <div className="flex-1 min-w-0 text-left">
+                  <p className="text-sm font-medium truncate">{user?.name || 'User Name'}</p>
+                  <p className="text-xs text-muted-foreground truncate">{user?.email || 'user@example.com'}</p>
+                </div>
+              )}
+              <MoreVertical className="ml-2 text-muted-foreground" size={20} />
+            </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem>
-              <User className="mr-2 h-4 w-4" /> Profile
+              <User size={16} className="mr-2" /> Profile
             </DropdownMenuItem>
             <DropdownMenuItem>
-              <Settings className="mr-2 h-4 w-4" /> Settings
+              <Settings size={16} className="mr-2" /> Settings
             </DropdownMenuItem>
-            <DropdownMenuItem className="text-destructive">
-              <LogOut className="mr-2 h-4 w-4" /> Logout
+            <DropdownMenuItem onClick={() => signOut()} className="text-destructive">
+              <LogOut size={16} className="mr-2" /> Logout
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

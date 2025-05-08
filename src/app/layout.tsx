@@ -20,13 +20,13 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`${inter.className} h-screen flex flex-col`}>
-        <DashboardLayout>
-          <Providers>
+        <Providers>
+          <DashboardLayout>
             <main className="flex flex-col flex-1 h-full overflow-hidden">
               {children}
             </main>
-          </Providers>
-        </DashboardLayout>
+          </DashboardLayout>
+        </Providers>
       </body>
     </html>
   );

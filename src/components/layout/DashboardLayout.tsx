@@ -1,11 +1,11 @@
-import { GlassCard } from '@/components/ui/GlassCard';
+'use client'
 
-export default function DashboardLayout({ children }) {
+import { ReactNode } from 'react';
+
+export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-background text-foreground flex">
-      <main className="flex-1 p-0">
-        {children}
-      </main>
+      {children}
     </div>
   );
 } 
