@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Sidebar from '@/components/Sidebar';
 import ConnectToolsButton from '@/components/ConnectToolsButton';
+import { Chat } from '@/components/Chat';
 
 export default function ChatPage() {
   const { data: session, status } = useSession();
@@ -37,10 +38,8 @@ export default function ChatPage() {
   return (
     <div className="flex h-full">
       <Sidebar user={session.user} />
-      <div className="flex flex-col flex-1 h-full items-center justify-center">
-        <span className="text-2xl font-semibold text-foreground text-center">
-          Hi {session.user?.name || 'there'}, how may I help?
-        </span>
+      <div className="flex-1 h-full overflow-hidden">
+        <Chat />
       </div>
     </div>
   );

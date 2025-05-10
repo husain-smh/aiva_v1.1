@@ -3,7 +3,7 @@
 import { FC, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { PlusCircle, MessageSquare, LogOut, ChevronLeft, ChevronRight, MoreVertical, Pencil, Trash2, User, Settings } from 'lucide-react';
+import { PlusCircle, MessageSquare, LogOut, ChevronLeft, ChevronRight, MoreVertical, Pencil, Trash2, User, Settings, Bot } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import { Button } from './ui/button';
 import {
@@ -11,8 +11,19 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from './ui/dropdown-menu';
 import { GlassCard } from './ui/GlassCard';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { CreateAgentForm } from './Chat/CreateAgentForm';
+import { Agent } from '@/types/agent';
 
 interface ChatItem {
   _id: string;
@@ -31,9 +42,11 @@ interface SidebarProps {
 const Sidebar: FC<SidebarProps> = ({ user }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [chats, setChats] = useState<ChatItem[]>([]);
+  const [agents, setAgents] = useState<Agent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [editingChatId, setEditingChatId] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState('');
+  const [showAgents, setShowAgents] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
 
@@ -97,7 +110,6 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
 
       setChats(chats.filter(chat => chat._id !== chatId));
       
-      // If we're currently viewing the deleted chat, redirect to new chat
       if (pathname === `/chat/${chatId}`) {
         router.push('/chat');
       }
@@ -125,6 +137,10 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
     }
   };
 
+  const handleCreateAgent = (agent: Agent) => {
+    setAgents(prev => [...prev, agent]);
+  };
+
   return (
     <div
       className={`flex flex-col h-full border-r border-border bg-sidebar text-sidebar-foreground transition-all duration-300 ${
@@ -144,94 +160,143 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
       </div>
 
       <div className="flex-1 overflow-y-auto p-2">
-        <button
-          onClick={handleNewChat}
-          className="flex items-center gap-2 p-2 mb-2 rounded-lg hover:bg-sidebar-accent text-sidebar-foreground transition-colors w-full"
-        >
-          <PlusCircle size={20} />
-          {!isCollapsed && <span>New Chat</span>}
-        </button>
+        <div className="flex items-center justify-between mb-2">
+          <button
+            onClick={handleNewChat}
+            className="flex items-center gap-2 p-2 rounded-lg hover:bg-sidebar-accent text-sidebar-foreground transition-colors"
+          >
+            <PlusCircle size={20} />
+            {!isCollapsed && <span>New Chat</span>}
+          </button>
 
-        {isLoading ? (
-          <div className="flex justify-center p-4">
-            <div className="h-5 w-5 border-2 border-sidebar-foreground border-t-transparent rounded-full animate-spin"></div>
-          </div>
-        ) : (
-          <div className="space-y-1">
-            {chats.map((chat) => (
-              <div
-                key={chat._id}
-                className={`group flex items-center justify-between p-2 rounded-lg hover:bg-sidebar-accent transition-colors ${
-                  pathname === `/chat/${chat._id}` ? 'bg-sidebar-accent' : ''
-                }`}
-              >
-                <Link
-                  href={`/chat/${chat._id}`}
-                  className="flex items-center gap-2 flex-1"
+          {!isCollapsed && (
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="rounded-full">
+                  <Bot size={20} />
+                </Button>
+              </SheetTrigger>
+              <SheetContent>
+                <SheetHeader>
+                  <SheetTitle>Create New Agent</SheetTitle>
+                </SheetHeader>
+                <ScrollArea className="h-[calc(100vh-100px)] mt-4 pr-4">
+                  <CreateAgentForm onSubmit={handleCreateAgent} />
+                </ScrollArea>
+              </SheetContent>
+            </Sheet>
+          )}
+        </div>
+
+        {/* Agents Section */}
+        {!isCollapsed && agents.length > 0 && (
+          <div className="mb-4">
+            <div className="flex items-center gap-2 px-2 py-1 text-xs font-semibold text-muted-foreground">
+              <Bot size={14} />
+              <span>Agents</span>
+            </div>
+            <div className="space-y-1">
+              {agents.map((agent) => (
+                <div
+                  key={agent.id}
+                  className="flex items-center gap-2 p-2 rounded-lg hover:bg-sidebar-accent cursor-pointer"
                 >
-                  {!isCollapsed && (
-                    editingChatId === chat._id ? (
-                      <input
-                        type="text"
-                        value={newTitle}
-                        onChange={(e) => setNewTitle(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            handleRename(chat._id);
-                          } else if (e.key === 'Escape') {
-                            setEditingChatId(null);
-                            setNewTitle('');
-                          }
-                        }}
-                        onBlur={() => {
-                          if (newTitle.trim()) {
-                            handleRename(chat._id);
-                          } else {
-                            setEditingChatId(null);
-                            setNewTitle('');
-                          }
-                        }}
-                        className="bg-transparent border-none outline-none w-full"
-                        autoFocus
-                      />
-                    ) : (
-                      <span className="truncate">{chat.title}</span>
-                    )
-                  )}
-                </Link>
-                {!isCollapsed && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <MoreVertical size={16} />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onClick={() => {
-                          setEditingChatId(chat._id);
-                          setNewTitle(chat.title);
-                        }}
-                      >
-                        <Pencil size={16} className="mr-2" /> Rename
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => handleDelete(chat._id)}
-                        className="text-destructive"
-                      >
-                        <Trash2 size={16} className="mr-2" /> Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-              </div>
-            ))}
+                  <span className="truncate text-sm">{agent.name}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
+
+        {/* Chats Section */}
+        <div className="space-y-1">
+          {!isCollapsed && (
+            <div className="flex items-center gap-2 px-2 py-1 text-xs font-semibold text-muted-foreground">
+              <MessageSquare size={14} />
+              <span>Chats</span>
+            </div>
+          )}
+          {isLoading ? (
+            <div className="flex justify-center p-4">
+              <div className="h-5 w-5 border-2 border-sidebar-foreground border-t-transparent rounded-full animate-spin"></div>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {chats.map((chat) => (
+                <div
+                  key={chat._id}
+                  className={`group flex items-center justify-between p-2 rounded-lg hover:bg-sidebar-accent transition-colors ${
+                    pathname === `/chat/${chat._id}` ? 'bg-sidebar-accent' : ''
+                  }`}
+                >
+                  <Link
+                    href={`/chat/${chat._id}`}
+                    className="flex items-center gap-2 flex-1"
+                  >
+                    {!isCollapsed && (
+                      editingChatId === chat._id ? (
+                        <input
+                          type="text"
+                          value={newTitle}
+                          onChange={(e) => setNewTitle(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              handleRename(chat._id);
+                            } else if (e.key === 'Escape') {
+                              setEditingChatId(null);
+                              setNewTitle('');
+                            }
+                          }}
+                          onBlur={() => {
+                            if (newTitle.trim()) {
+                              handleRename(chat._id);
+                            } else {
+                              setEditingChatId(null);
+                              setNewTitle('');
+                            }
+                          }}
+                          className="bg-transparent border-none outline-none w-full"
+                          autoFocus
+                        />
+                      ) : (
+                        <span className="truncate">{chat.title}</span>
+                      )
+                    )}
+                  </Link>
+                  {!isCollapsed && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <MoreVertical size={16} />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setEditingChatId(chat._id);
+                            setNewTitle(chat.title);
+                          }}
+                        >
+                          <Pencil size={16} className="mr-2" /> Rename
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleDelete(chat._id)}
+                          className="text-destructive"
+                        >
+                          <Trash2 size={16} className="mr-2" /> Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* User Info at the bottom */}
@@ -248,18 +313,21 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
                   <p className="text-xs text-muted-foreground truncate">{user?.email || 'user@example.com'}</p>
                 </div>
               )}
-              <MoreVertical className="ml-2 text-muted-foreground" size={20} />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuItem>
               <User size={16} className="mr-2" /> Profile
             </DropdownMenuItem>
             <DropdownMenuItem>
               <Settings size={16} className="mr-2" /> Settings
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => signOut()} className="text-destructive">
-              <LogOut size={16} className="mr-2" /> Logout
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => signOut()}
+              className="text-destructive"
+            >
+              <LogOut size={16} className="mr-2" /> Sign Out
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

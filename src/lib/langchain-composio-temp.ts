@@ -7,16 +7,7 @@ import { findToolsByUseCase } from "./composio";
 import { getServerSession } from "next-auth";
 import { ConsoleCallbackHandler } from "@langchain/core/tracers/console";
 
-// Helper function: Find apps from semantic tools
-// function findAppsFromSemanticTools(semanticTools: any[]): string[] {
-//   const apps = semanticTools.map(tool => {
-//     const functionName = tool.function.name; // example: "GITHUB_CREATE_A_REPOSITORY_USING_A_TEMPLATE"
-//     const appName = functionName.split('_')[0]; // take the part before first "_"
-//     return appName.toLowerCase(); // "GITHUB" -> "github"
-//   });
 
-//   return Array.from(new Set(apps)); // remove duplicates
-// }
 
 export async function executingTheTools(
   input: string,
