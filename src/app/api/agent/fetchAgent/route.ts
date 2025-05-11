@@ -6,8 +6,7 @@ import { User } from '@/models/User';
 
 // Get a single agent
 export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: NextRequest
 ) {
   try {
     const session = await getServerSession();
@@ -16,9 +15,17 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
+    // Get agent ID from query parameter
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    
+    if (!id) {
+      return NextResponse.json({ error: 'Agent ID is required' }, { status: 400 });
+    }
+    
     await connectToDatabase();
     
-    const agent = await Agent.findById(params.id);
+    const agent = await Agent.findById(id);
     
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });

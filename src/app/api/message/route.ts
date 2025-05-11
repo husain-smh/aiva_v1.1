@@ -8,6 +8,7 @@ import { User } from '@/models/User';
 import { loadComposioTools, executeComposioTool, COMPOSIO_ACTIONS, findToolsByUseCase } from '@/lib/composio';
 import { runComposioAgentWithTools } from '@/lib/langchain-composio';
 import { executingTheTools } from '@/lib/langchain-composio-temp';
+import { Agent } from '@/models/Agent';
 
 /**
  * Generate a concise three-word title from the first message
@@ -75,8 +76,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 1. Get user prompt
-    const { content, chatId } = await request.json();
+    // 1. Get user prompt and agentId from request    
+    const { content, chatId, agentId } = await request.json();
     await connectToDatabase();
 
     // Get user ID from session or find by email if not available
@@ -97,17 +98,36 @@ export async function POST(request: NextRequest) {
     }
 
     let currentChatId = chatId;
+    let currentAgentId = agentId;
 
     // If no chatId provided, create a new chat
     if (!currentChatId) {
+      // Require agentId for new chats
+      if (!currentAgentId) {
+        return NextResponse.json({ error: 'Agent ID is required to create a new chat' }, { status: 400 });
+      }
+      
       // Generate title using AI
       const title = await generateChatTitle(content);
       
       const newChat = await Chat.create({
         userId: userId,
+        agentId: currentAgentId,
         title: title,
       });
       currentChatId = newChat._id.toString();
+    } else if (!currentAgentId) {
+      // If chatId is provided but agentId isn't, fetch the agent from the chat
+      const chat = await Chat.findById(currentChatId);
+      if (chat && chat.agentId) {
+        currentAgentId = chat.agentId.toString();
+      }
+    }
+
+    // Fetch agent data if we have an agent ID
+    let agentData = null;
+    if (currentAgentId) {
+      agentData = await Agent.findById(currentAgentId);
     }
 
     // Save user message
@@ -167,7 +187,17 @@ export async function POST(request: NextRequest) {
         // 3. Pass prompt and semantic tools to LangChain for execution
         console.log('Executing with LangChain...');
         
-        const langchainResponse = await executingTheTools(content, parsedSemanticTools, {});
+        // Create agent config from agentData if available
+        const agentConfig = agentData ? {
+          name: agentData.name,
+          description: agentData.description,
+          context: agentData.context,
+          instructions: agentData.instructions,
+          temperature: 0.2,
+        } : undefined;
+        
+        // Pass agent configuration to executingTheTools
+        const langchainResponse = await executingTheTools(content, parsedSemanticTools, agentConfig, {});
         assistantMessageText = langchainResponse.output;
       } 
       else {

@@ -3,6 +3,7 @@ import mongoose, { Schema, models } from 'mongoose';
 interface IChat {
   _id: string;
   userId: string;
+  agentId: Schema.Types.ObjectId;
   title: string;
   createdAt: Date;
 }
@@ -11,6 +12,11 @@ const chatSchema = new Schema<IChat>({
   userId: {
     type: String,
     required: true,
+  },
+  agentId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Agent',
+    required: false,
   },
   title: {
     type: String,

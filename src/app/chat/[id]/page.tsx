@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react';
 import Sidebar from '@/components/Sidebar';
 import ChatWindow, { MessageType } from '@/components/ChatWindow';
 import ConnectToolsButton from '@/components/ConnectToolsButton';
+import { Agent } from '@/types/agent';
 
 export default function ChatById() {
   const { data: session, status } = useSession();
@@ -17,6 +18,7 @@ export default function ChatById() {
   const [isLoading, setIsLoading] = useState(true);
   const [sendingMessage, setSendingMessage] = useState(false);
   const [chatTitle, setChatTitle] = useState('');
+  const [chatAgent, setChatAgent] = useState<Agent | null>(null);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -47,10 +49,27 @@ export default function ChatById() {
       const data = await response.json();
       setMessages(data.messages);
       setChatTitle(data.chat.title);
+      
+      // If the chat has an agentId, fetch the agent details
+      if (data.chat.agentId) {
+        fetchChatAgent(data.chat.agentId);
+      }
     } catch (error) {
       console.error('Error fetching messages:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+  
+  const fetchChatAgent = async (agentId: string) => {
+    try {
+      const response = await fetch(`/api/agent/fetchAgent?id=${agentId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setChatAgent(data.agent);
+      }
+    } catch (error) {
+      console.error('Error fetching chat agent:', error);
     }
   };
 
@@ -74,7 +93,7 @@ export default function ChatById() {
       
       setMessages((prev) => [...prev, userMessage]);
 
-      // Send message to the API
+      // Send message to the API with chatAgent's id if available
       const response = await fetch('/api/message', {
         method: 'POST',
         headers: {
@@ -83,6 +102,7 @@ export default function ChatById() {
         body: JSON.stringify({
           content,
           chatId,
+          agentId: chatAgent?.id,
         }),
       });
 
@@ -130,9 +150,16 @@ export default function ChatById() {
       
       <div className="flex flex-col flex-1 h-full">
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <h1 className="text-xl font-bold truncate max-w-md">
-            {chatTitle || 'Chat'}
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold truncate max-w-md">
+              {chatTitle || 'Chat'}
+            </h1>
+            {chatAgent && (
+              <span className="text-sm px-2 py-1 bg-primary/10 rounded-full">
+                Agent: {chatAgent.name}
+              </span>
+            )}
+          </div>
           <ConnectToolsButton onToolsConnected={handleToolsConnected} />
         </div>
         

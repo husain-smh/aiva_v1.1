@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { CreateAgentForm } from './Chat/CreateAgentForm';
-import { Agent } from '@/types/agent';
+import { Agent, CreateAgentInput } from '@/types/agent';
 
 interface ChatItem {
   _id: string;
@@ -45,10 +45,18 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [editingChatId, setEditingChatId] = useState<string | null>(null);
+  const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState('');
+  const [updatedAgentName, setUpdatedAgentName] = useState('');
   const [showAgents, setShowAgents] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
+  const [agentToEdit, setAgentToEdit] = useState<Agent | null>(null);
+  const [isAgentFormOpen, setIsAgentFormOpen] = useState(false);
+  const [agentFormMode, setAgentFormMode] = useState<'create' | 'update'>('create');
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [agentChats, setAgentChats] = useState<Record<string, ChatItem[]>>({});
+  const [loadingAgentChats, setLoadingAgentChats] = useState(false);
 
   useEffect(() => {
     const fetchChats = async () => {
@@ -67,6 +75,54 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
 
     fetchChats();
   }, []);
+
+  useEffect(() => {
+    const fetchAgents = async () => {
+      try {
+        const response = await fetch('/api/agent/fetchAgents');
+        if (response.ok) {
+          const data = await response.json();
+          const mappedAgents = data.agents.map((agent: any) => ({
+            ...agent,
+            id: agent._id || agent.id,
+            apps: agent.connectedApps || agent.apps || [],
+            createdAt: new Date(agent.createdAt)
+          }));
+          setAgents(mappedAgents);
+        }
+      } catch (error) {
+        console.error('Error fetching agents:', error);
+      }
+    };
+  
+    fetchAgents();
+  }, []);
+
+  useEffect(() => {
+    const fetchAgentChats = async () => {
+      if (!selectedAgentId) return;
+      
+      setLoadingAgentChats(true);
+      try {
+        const response = await fetch(`/api/chats/byAgent/${selectedAgentId}`);
+        if (response.ok) {
+          const data = await response.json();
+          setAgentChats(prev => ({
+            ...prev,
+            [selectedAgentId]: data
+          }));
+        }
+      } catch (error) {
+        console.error(`Error fetching chats for agent ${selectedAgentId}:`, error);
+      } finally {
+        setLoadingAgentChats(false);
+      }
+    };
+    
+    if (selectedAgentId) {
+      fetchAgentChats();
+    }
+  }, [selectedAgentId]);
 
   const toggleSidebar = () => {
     setIsCollapsed(!isCollapsed);
@@ -119,26 +175,190 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
   };
 
   const handleNewChat = async () => {
-    try {
-      const response = await fetch('/api/message', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: 'New chat' }),
-      });
-      if (!response.ok) throw new Error('Failed to create new chat');
-      const data = await response.json();
-      if (data.chatId) {
-        router.push(`/chat/${data.chatId}`);
-      } else if (data._id) {
-        router.push(`/chat/${data._id}`);
+    if (selectedAgentId) {
+      try {
+        const response = await fetch('/api/message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            content: 'New chat',
+            agentId: selectedAgentId 
+          }),
+        });
+        
+        if (!response.ok) throw new Error('Failed to create new chat');
+        
+        const data = await response.json();
+        const chatId = data.chatId || data._id;
+        
+        if (chatId) {
+          const newChat = {
+            _id: chatId,
+            title: 'New Chat',
+            createdAt: new Date().toISOString()
+          };
+          
+          setAgentChats(prev => ({
+            ...prev,
+            [selectedAgentId]: [newChat, ...(prev[selectedAgentId] || [])]
+          }));
+          
+          router.push(`/chat/${chatId}`);
+        }
+      } catch (error) {
+        console.error('Error creating new chat:', error);
       }
-    } catch (error) {
-      console.error('Error creating new chat:', error);
+    } else {
+      try {
+        const response = await fetch('/api/message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: 'New chat' }),
+        });
+        if (!response.ok) throw new Error('Failed to create new chat');
+        const data = await response.json();
+        if (data.chatId) {
+          router.push(`/chat/${data.chatId}`);
+        } else if (data._id) {
+          router.push(`/chat/${data._id}`);
+        }
+      } catch (error) {
+        console.error('Error creating new chat:', error);
+      }
     }
   };
 
-  const handleCreateAgent = (agent: Agent) => {
-    setAgents(prev => [...prev, agent]);
+  const handleCreateAgent = async (agentInput: CreateAgentInput) => {
+    try {
+      const response = await fetch('/api/agent/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: agentInput.name,
+          description: agentInput.description,
+          context: agentInput.context,
+          instructions: agentInput.instructions,
+          connectedApps: agentInput.apps,
+        }),
+      });
+  
+      if (!response.ok) {
+        throw new Error('Failed to create agent');
+      }
+  
+      const data = await response.json();
+      const newAgent: Agent = {
+        ...data.agent,
+        id: data.agent._id,
+        apps: data.agent.connectedApps,
+        createdAt: new Date(data.agent.createdAt),
+      };
+      
+      setAgents(prev => [...prev, newAgent]);
+      setIsAgentFormOpen(false);
+    } catch (error) {
+      console.error('Error creating agent:', error);
+    }
+  };
+
+  const handleUpdateAgent = async (agentInput: CreateAgentInput) => {
+    try {
+      if (!agentToEdit) return;
+
+      const updatedAgent: Agent = {
+        ...agentToEdit,
+        name: agentInput.name,
+        description: agentInput.description,
+        context: agentInput.context,
+        instructions: agentInput.instructions,
+        apps: agentInput.apps,
+      };
+      
+      const response = await fetch(`/api/agent/updateAgent`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatedAgent),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update agent');
+      }
+
+      setAgents(agents.map(agent => 
+        agent.id === agentToEdit.id ? updatedAgent : agent
+      ));
+      
+      setAgentToEdit(null);
+      setIsAgentFormOpen(false);
+      setAgentFormMode('create');
+    } catch (error) {
+      console.error('Error updating agent:', error);
+    }
+  };
+
+  const handleInlineUpdate = async (agentId: string) => {
+    try {
+      const agentToUpdate = agents.find(agent => agent.id === agentId);
+      if (!agentToUpdate) return;
+
+      const updatedAgent: Agent = {
+        ...agentToUpdate,
+        name: updatedAgentName
+      };
+      
+      const response = await fetch(`/api/agent/updateAgent`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatedAgent),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update agent');
+      }
+
+      setAgents(agents.map(agent => 
+        agent.id === agentId ? updatedAgent : agent
+      ));
+      
+      setEditingAgentId(null);
+      setUpdatedAgentName('');
+    } catch (error) {
+      console.error('Error updating agent:', error);
+    }
+  };
+
+  const handleDeleteAgent = async (agentId: string) => {
+    if (!confirm('Are you sure you want to delete this agent?')) return;
+
+    try {
+      const response = await fetch(`/api/agent/deleteAgent`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id: agentId }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete agent');
+      }
+
+      setAgents(agents.filter(agent => agent.id !== agentId));
+    } catch (error) {
+      console.error('Error deleting agent:', error);
+    }
+  };
+
+  const openEditAgentForm = (agent: Agent) => {
+    setAgentToEdit(agent);
+    setAgentFormMode('update');
+    setIsAgentFormOpen(true);
   };
 
   return (
@@ -170,25 +390,40 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
           </button>
 
           {!isCollapsed && (
-            <Sheet>
+            <Sheet open={isAgentFormOpen} onOpenChange={setIsAgentFormOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="rounded-full">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="rounded-full"
+                  onClick={() => {
+                    setAgentFormMode('create');
+                    setAgentToEdit(null);
+                    setIsAgentFormOpen(true);
+                  }}
+                >
                   <Bot size={20} />
                 </Button>
               </SheetTrigger>
               <SheetContent>
                 <SheetHeader>
-                  <SheetTitle>Create New Agent</SheetTitle>
+                  <SheetTitle>
+                    {agentFormMode === 'create' ? 'Create New Agent' : 'Update Agent'}
+                  </SheetTitle>
                 </SheetHeader>
                 <ScrollArea className="h-[calc(100vh-100px)] mt-4 pr-4">
-                  <CreateAgentForm onSubmit={handleCreateAgent} />
+                  <CreateAgentForm 
+                    onSubmit={agentFormMode === 'create' ? handleCreateAgent : handleUpdateAgent} 
+                    agentToEdit={agentToEdit}
+                    mode={agentFormMode}
+                  />
                 </ScrollArea>
               </SheetContent>
             </Sheet>
           )}
         </div>
 
-        {/* Agents Section */}
+        {/* Agents Section - Updated to handle selection */}
         {!isCollapsed && agents.length > 0 && (
           <div className="mb-4">
             <div className="flex items-center gap-2 px-2 py-1 text-xs font-semibold text-muted-foreground">
@@ -199,71 +434,142 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
               {agents.map((agent) => (
                 <div
                   key={agent.id}
-                  className="flex items-center gap-2 p-2 rounded-lg hover:bg-sidebar-accent cursor-pointer"
+                  className={`group flex items-center justify-between p-2 rounded-lg hover:bg-sidebar-accent cursor-pointer ${
+                    selectedAgentId === agent.id ? 'bg-sidebar-accent' : ''
+                  }`}
+                  onClick={() => setSelectedAgentId(agent.id === selectedAgentId ? null : agent.id)}
                 >
-                  <span className="truncate text-sm">{agent.name}</span>
+                  {editingAgentId === agent.id ? (
+                    <input
+                      type="text"
+                      value={updatedAgentName}
+                      onChange={(e) => setUpdatedAgentName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleInlineUpdate(agent.id);
+                        } else if (e.key === 'Escape') {
+                          setEditingAgentId(null);
+                          setUpdatedAgentName('');
+                        }
+                      }}
+                      onBlur={() => {
+                        if (updatedAgentName.trim()) {
+                          handleInlineUpdate(agent.id);
+                        } else {
+                          setEditingAgentId(null);
+                          setUpdatedAgentName('');
+                        }
+                      }}
+                      className="bg-transparent border-none outline-none flex-1"
+                      autoFocus
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  ) : (
+                    <span className="truncate text-sm flex-1">{agent.name}</span>
+                  )}
+                  
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <MoreVertical size={16} />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEditAgentForm(agent);
+                        }}
+                      >
+                        <Pencil size={16} className="mr-2" /> Edit Agent
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteAgent(agent.id);
+                        }}
+                        className="text-destructive"
+                      >
+                        <Trash2 size={16} className="mr-2" /> Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* Chats Section */}
-        <div className="space-y-1">
-          {!isCollapsed && (
-            <div className="flex items-center gap-2 px-2 py-1 text-xs font-semibold text-muted-foreground">
-              <MessageSquare size={14} />
-              <span>Chats</span>
+        {/* Agent-specific chats section */}
+        {selectedAgentId && !isCollapsed && (
+          <div className="mb-4">
+            <div className="flex items-center justify-between px-2 py-1">
+              <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+                <MessageSquare size={14} />
+                <span>Agent Chats</span>
+              </div>
+              <Button
+                onClick={handleNewChat}
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 rounded-full"
+              >
+                <PlusCircle size={14} />
+              </Button>
             </div>
-          )}
-          {isLoading ? (
-            <div className="flex justify-center p-4">
-              <div className="h-5 w-5 border-2 border-sidebar-foreground border-t-transparent rounded-full animate-spin"></div>
-            </div>
-          ) : (
-            <div className="space-y-1">
-              {chats.map((chat) => (
-                <div
-                  key={chat._id}
-                  className={`group flex items-center justify-between p-2 rounded-lg hover:bg-sidebar-accent transition-colors ${
-                    pathname === `/chat/${chat._id}` ? 'bg-sidebar-accent' : ''
-                  }`}
-                >
-                  <Link
-                    href={`/chat/${chat._id}`}
-                    className="flex items-center gap-2 flex-1"
+            
+            {loadingAgentChats ? (
+              <div className="flex justify-center p-4">
+                <div className="h-5 w-5 border-2 border-sidebar-foreground border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            ) : agentChats[selectedAgentId]?.length > 0 ? (
+              <div className="space-y-1">
+                {agentChats[selectedAgentId].map((chat) => (
+                  <div
+                    key={chat._id}
+                    className={`group flex items-center justify-between p-2 rounded-lg hover:bg-sidebar-accent transition-colors ${
+                      pathname === `/chat/${chat._id}` ? 'bg-sidebar-accent' : ''
+                    }`}
                   >
-                    {!isCollapsed && (
-                      editingChatId === chat._id ? (
-                        <input
-                          type="text"
-                          value={newTitle}
-                          onChange={(e) => setNewTitle(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              handleRename(chat._id);
-                            } else if (e.key === 'Escape') {
-                              setEditingChatId(null);
-                              setNewTitle('');
-                            }
-                          }}
-                          onBlur={() => {
-                            if (newTitle.trim()) {
-                              handleRename(chat._id);
-                            } else {
-                              setEditingChatId(null);
-                              setNewTitle('');
-                            }
-                          }}
-                          className="bg-transparent border-none outline-none w-full"
-                          autoFocus
-                        />
-                      ) : (
-                        <span className="truncate">{chat.title}</span>
-                      )
-                    )}
-                  </Link>
-                  {!isCollapsed && (
+                    <Link
+                      href={`/chat/${chat._id}`}
+                      className="flex items-center gap-2 flex-1"
+                    >
+                      {!isCollapsed && (
+                        editingChatId === chat._id ? (
+                          <input
+                            type="text"
+                            value={newTitle}
+                            onChange={(e) => setNewTitle(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                handleRename(chat._id);
+                              } else if (e.key === 'Escape') {
+                                setEditingChatId(null);
+                                setNewTitle('');
+                              }
+                            }}
+                            onBlur={() => {
+                              if (newTitle.trim()) {
+                                handleRename(chat._id);
+                              } else {
+                                setEditingChatId(null);
+                                setNewTitle('');
+                              }
+                            }}
+                            className="bg-transparent border-none outline-none w-full"
+                            autoFocus
+                          />
+                        ) : (
+                          <span className="truncate">{chat.title}</span>
+                        )
+                      )}
+                    </Link>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
@@ -291,12 +597,108 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="px-2 py-1 text-xs text-muted-foreground">
+                No chats yet. Create one to get started.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* All Chats Section - Only show when no agent is selected */}
+        {!selectedAgentId && (
+          <div className="space-y-1">
+            {!isCollapsed && (
+              <div className="flex items-center gap-2 px-2 py-1 text-xs font-semibold text-muted-foreground">
+                <MessageSquare size={14} />
+                <span>All Chats</span>
+              </div>
+            )}
+            {isLoading ? (
+              <div className="flex justify-center p-4">
+                <div className="h-5 w-5 border-2 border-sidebar-foreground border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {chats.map((chat) => (
+                  <div
+                    key={chat._id}
+                    className={`group flex items-center justify-between p-2 rounded-lg hover:bg-sidebar-accent transition-colors ${
+                      pathname === `/chat/${chat._id}` ? 'bg-sidebar-accent' : ''
+                    }`}
+                  >
+                    <Link
+                      href={`/chat/${chat._id}`}
+                      className="flex items-center gap-2 flex-1"
+                    >
+                      {!isCollapsed && (
+                        editingChatId === chat._id ? (
+                          <input
+                            type="text"
+                            value={newTitle}
+                            onChange={(e) => setNewTitle(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                handleRename(chat._id);
+                              } else if (e.key === 'Escape') {
+                                setEditingChatId(null);
+                                setNewTitle('');
+                              }
+                            }}
+                            onBlur={() => {
+                              if (newTitle.trim()) {
+                                handleRename(chat._id);
+                              } else {
+                                setEditingChatId(null);
+                                setNewTitle('');
+                              }
+                            }}
+                            className="bg-transparent border-none outline-none w-full"
+                            autoFocus
+                          />
+                        ) : (
+                          <span className="truncate">{chat.title}</span>
+                        )
+                      )}
+                    </Link>
+                    {!isCollapsed && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <MoreVertical size={16} />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setEditingChatId(chat._id);
+                              setNewTitle(chat.title);
+                            }}
+                          >
+                            <Pencil size={16} className="mr-2" /> Rename
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleDelete(chat._id)}
+                            className="text-destructive"
+                          >
+                            <Trash2 size={16} className="mr-2" /> Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* User Info at the bottom */}

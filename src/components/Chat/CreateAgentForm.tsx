@@ -1,16 +1,18 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { CreateAgentInput } from '@/types/agent';
+import { Agent, CreateAgentInput } from '@/types/agent';
 
-interface CreateAgentFormProps {
+interface AgentFormProps {
     onSubmit: (agent: CreateAgentInput) => void;
+    agentToEdit?: Agent | null;
+    mode: 'create' | 'update';
 }
 
-export function CreateAgentForm({ onSubmit }: CreateAgentFormProps) {
+export function CreateAgentForm({ onSubmit, agentToEdit = null, mode = 'create' }: AgentFormProps) {
     const [formData, setFormData] = useState<CreateAgentInput>({
         name: '',
         description: '',
@@ -20,6 +22,19 @@ export function CreateAgentForm({ onSubmit }: CreateAgentFormProps) {
     });
 
     const [appInput, setAppInput] = useState('');
+
+    // Initialize form with agent data if in edit mode
+    useEffect(() => {
+        if (agentToEdit && mode === 'update') {
+            setFormData({
+                name: agentToEdit.name,
+                description: agentToEdit.description,
+                context: agentToEdit.context,
+                instructions: agentToEdit.instructions,
+                apps: [...agentToEdit.apps]
+            });
+        }
+    }, [agentToEdit, mode]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -117,7 +132,9 @@ export function CreateAgentForm({ onSubmit }: CreateAgentFormProps) {
                 </div>
             </div>
             <div className="pt-4 pb-2">
-                <Button type="submit" className="w-full">Create Agent</Button>
+                <Button type="submit" className="w-full">
+                    {mode === 'create' ? 'Create Agent' : 'Update Agent'}
+                </Button>
             </div>
         </form>
     );

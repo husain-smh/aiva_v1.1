@@ -7,9 +7,13 @@ import { User } from '@/models/User';
 // Delete an agent
 export async function DELETE(
     request: NextRequest,
-    { params }: { params: { id: string } }
   ) {
     try {
+      const body = await request.json(); // Read JSON body
+      const { id } = body;
+      if (!id) {
+        return NextResponse.json({ error: 'Agent ID is required' }, { status: 400 });
+      }
       const session = await getServerSession();
       
       if (!session?.user?.email) {
@@ -27,7 +31,7 @@ export async function DELETE(
       
       // Delete the agent
       const result = await Agent.findOneAndDelete({
-        _id: params.id,
+        _id: id,
         userId: user._id
       });
       

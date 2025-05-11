@@ -1,6 +1,6 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { createOpenAIFunctionsAgent, AgentExecutor } from "langchain/agents";
-import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { ChatPromptTemplate, MessagesPlaceholder } from "@langchain/core/prompts";
 import { LangchainToolSet } from "composio-core";
 import { pull } from "langchain/hub";
 import { findToolsByUseCase } from "./composio";
@@ -12,6 +12,13 @@ import { ConsoleCallbackHandler } from "@langchain/core/tracers/console";
 export async function executingTheTools(
   input: string,
   semanticTools: string[],
+  agentConfig?: {
+    name?: string;
+    description?: string;
+    context?: string;
+    instructions?: string;
+    temperature?: number;
+  },
   options?: { callbacks?: any[] }
 ) {
    // 1. Detect apps needed
@@ -19,11 +26,30 @@ export async function executingTheTools(
 
   // console.log("User input:", input);
   console.log("Semantic tools pre-filtered:", semanticTools);
+  
+  // Default agent configuration
+  const defaultAgentConfig = {
+    name: "AssistantAgent",
+    description: "a helpful AI assistant that can use various tools to assist users.",
+    context: "You're here to help the user complete tasks using the provided tools.",
+    instructions: "Use the appropriate tools to help users. Be concise and helpful.",
+    temperature: 0.2,
+  };
+
+  // Merge default config with provided config
+  const finalAgentConfig = {
+    ...defaultAgentConfig,
+    ...agentConfig,
+  };
+
   const session = await getServerSession();
-const llm = new ChatOpenAI();
-const toolset = new LangchainToolSet({
-  entityId: session?.user.email ?? undefined,
-});
+  const llm = new ChatOpenAI({
+    temperature: finalAgentConfig.temperature,
+  });
+  
+  const toolset = new LangchainToolSet({
+    entityId: session?.user.email ?? undefined,
+  });
 
   for (const app of semanticTools){
     try {
@@ -39,26 +65,48 @@ const toolset = new LangchainToolSet({
   // 2. Fetch the actual tools for the selected apps
   const allTools = await toolset.getTools({ apps: semanticTools });
   
+  // Build a custom system message with agent info, context, and instructions
+  const systemMessage = `
+# Agent Profile
+You are ${finalAgentConfig.name}, ${finalAgentConfig.description}
 
-  // 3. Build a ChatPromptTemplate with exactly three roles:
-  const prompt = await pull<ChatPromptTemplate>("hwchase17/openai-functions-agent");
+# Available Tools
+You have access to the following tools/apps:
+${semanticTools.map(tool => `- ${tool}`).join('\n')}
 
-  // semanticTools is now [<appName>,…], so you no longer extract .function.name off it.
-  // Instead just hand the full set of tools back to the agent:
-  const tools = allTools;
+# Context
+${finalAgentConfig.context}
 
-  // 4. Create the OpenAI-Functions agent
+# Instructions
+${finalAgentConfig.instructions}
+
+# Response Guidelines
+1. Always identify yourself as ${finalAgentConfig.name}
+2. Use available tools when appropriate to fulfill user requests
+3. Think step by step when solving complex problems
+4. If you need information from a connected service, use the appropriate tool
+5. Be helpful, concise, and professional in your responses
+`;
+
+  // Create the prompt template with system message, user input, and agent scratchpad
+  const promptTemplate = ChatPromptTemplate.fromMessages([
+    ["system", systemMessage],
+    ["human", "{input}"],
+    new MessagesPlaceholder("agent_scratchpad"),
+  ]);
+
+  // Create the agent with our custom prompt
   const agent = await createOpenAIFunctionsAgent({
     llm,
-    tools,
-    prompt,
+    tools: allTools,
+    prompt: promptTemplate,
   });
   // console.log("Agent created:", agent);
 
   // 5. Wrap it in an executor (verbose logs all steps)
   const agentExecutor = new AgentExecutor({ 
     agent, 
-    tools, 
+    tools: allTools, 
     verbose: false,
     callbacks: options?.callbacks || [new ConsoleCallbackHandler()]
   });
