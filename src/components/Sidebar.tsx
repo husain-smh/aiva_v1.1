@@ -57,6 +57,9 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [agentChats, setAgentChats] = useState<Record<string, ChatItem[]>>({});
   const [loadingAgentChats, setLoadingAgentChats] = useState(false);
+  const [expandedAgentId, setExpandedAgentId] = useState<string | null>(null);
+  const [isCreatingAgent, setIsCreatingAgent] = useState(false);
+  const [creatingChatAgentId, setCreatingChatAgentId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchChats = async () => {
@@ -229,6 +232,7 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
   };
 
   const handleCreateAgent = async (agentInput: CreateAgentInput) => {
+    setIsCreatingAgent(true);
     try {
       const response = await fetch('/api/agent/create', {
         method: 'POST',
@@ -260,6 +264,8 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
       setIsAgentFormOpen(false);
     } catch (error) {
       console.error('Error creating agent:', error);
+    } finally {
+      setIsCreatingAgent(false);
     }
   };
 
@@ -404,6 +410,37 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
     }
   };
 
+  const handleNewChatForAgent = async (agentId: string) => {
+    try {
+      const response = await fetch('/api/message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          content: 'New chat',
+          agentId
+        }),
+      });
+      if (!response.ok) throw new Error('Failed to create new chat');
+      const data = await response.json();
+      const chatId = data.chatId || data._id;
+      if (chatId) {
+        // Fetch the latest chats for this agent
+        const chatsRes = await fetch(`/api/chats/byAgent/${agentId}`);
+        if (chatsRes.ok) {
+          const chatsData = await chatsRes.json();
+          setAgentChats(prev => ({
+            ...prev,
+            [agentId]: chatsData
+          }));
+        }
+        setExpandedAgentId(agentId);
+        router.push(`/chat/${chatId}`);
+      }
+    } catch (error) {
+      console.error('Error creating new chat:', error);
+    }
+  };
+
   return (
     <div
       className={`flex flex-col h-full border-r border-border bg-sidebar text-sidebar-foreground transition-all duration-300 ${
@@ -450,7 +487,6 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
         {!isCollapsed && agents.length > 0 && (
           <div className="mb-4">
             <div className="flex justify-between items-center gap-2 px-2 py-1 text-xs font-semibold text-muted-foreground">
-              {/* <Bot size={14} /> */}
               <span>Agents</span>
               <Button
                 variant="ghost"
@@ -461,86 +497,216 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
                   setAgentToEdit(null);
                   setIsAgentFormOpen(true);
                 }}
+                disabled={isCreatingAgent}
               >
-                <span className="text-lg leading-none">+</span>
+                {isCreatingAgent ? (
+                  <span className="animate-spin h-4 w-4 border-2 border-sidebar-foreground border-t-transparent rounded-full inline-block"></span>
+                ) : (
+                  <span className="text-lg leading-none">+</span>
+                )}
               </Button>
             </div>
-            <div className="space-y-1">
+            <div className="space-y-3">
               {agents.map((agent) => (
-                <div
-                  key={agent.id}
-                  className={`group flex items-center justify-between p-2 rounded-lg hover:bg-sidebar-accent cursor-pointer ${
-                    selectedAgentId === agent.id ? 'bg-sidebar-accent' : ''
-                  }`}
-                  onClick={() => setSelectedAgentId(agent.id === selectedAgentId ? null : agent.id)}
-                >
-                  {editingAgentId === agent.id ? (
-                    <input
-                      type="text"
-                      value={updatedAgentName}
-                      onChange={(e) => setUpdatedAgentName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          handleInlineUpdate(agent.id);
-                        } else if (e.key === 'Escape') {
-                          setEditingAgentId(null);
-                          setUpdatedAgentName('');
+                <div key={agent.id}>
+                  <div
+                    className={`group flex items-center justify-between px-2 py-2 rounded-lg cursor-pointer transition-colors
+                      ${expandedAgentId === agent.id ? '' : ''}
+                      hover:bg-sidebar-accent
+                    `}
+                    style={{ marginBottom: expandedAgentId === agent.id ? '0.25rem' : '0.5rem' }}
+                    onClick={() => {
+                      if (expandedAgentId !== agent.id) {
+                        if (!agentChats[agent.id]) {
+                          setLoadingAgentChats(true);
+                          fetch(`/api/chats/byAgent/${agent.id}`)
+                            .then(res => res.ok ? res.json() : [])
+                            .then(data => {
+                              setAgentChats(prev => ({ ...prev, [agent.id]: data }));
+                            })
+                            .catch(err => console.error(err))
+                            .finally(() => setLoadingAgentChats(false));
                         }
-                      }}
-                      onBlur={() => {
-                        if (updatedAgentName.trim()) {
-                          handleInlineUpdate(agent.id);
-                        } else {
-                          setEditingAgentId(null);
-                          setUpdatedAgentName('');
-                        }
-                      }}
-                      className="bg-transparent border-none outline-none flex-1"
-                      autoFocus
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  ) : (
-                    <span className="truncate text-sm flex-1">{agent.name}</span>
-                  )}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
+                        setExpandedAgentId(agent.id);
+                      } else {
+                        setExpandedAgentId(null);
+                      }
+                    }}
+                  >
+                    {editingAgentId === agent.id ? (
+                      <input
+                        type="text"
+                        value={updatedAgentName}
+                        onChange={(e) => setUpdatedAgentName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            handleInlineUpdate(agent.id);
+                          } else if (e.key === 'Escape') {
+                            setEditingAgentId(null);
+                            setUpdatedAgentName('');
+                          }
+                        }}
+                        onBlur={() => {
+                          if (updatedAgentName.trim()) {
+                            handleInlineUpdate(agent.id);
+                          } else {
+                            setEditingAgentId(null);
+                            setUpdatedAgentName('');
+                          }
+                        }}
+                        className="bg-transparent border-none outline-none flex-1"
+                        autoFocus
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <span className="truncate text-base font-semibold flex-1">{agent.name}</span>
+                    )}
+                    <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={(e) => e.stopPropagation()}
+                        className="h-6 w-6 p-0"
+                        onClick={async () => {
+                          setCreatingChatAgentId(agent.id);
+                          await handleNewChatForAgent(agent.id);
+                          setCreatingChatAgentId(null);
+                        }}
+                        title="New Chat"
+                        disabled={creatingChatAgentId === agent.id}
                       >
-                        <MoreVertical size={16} />
+                        {creatingChatAgentId === agent.id ? (
+                          <span className="animate-spin h-4 w-4 border-2 border-sidebar-foreground border-t-transparent rounded-full inline-block"></span>
+                        ) : (
+                          <PlusCircle size={16} />
+                        )}
                       </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openEditAgentForm(agent);
-                        }}
-                      >
-                        <Pencil size={16} className="mr-2" /> Edit Agent
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleUpdateAgentContext(agent);
-                        }}
-                      >
-                        <Settings size={16} className="mr-2" /> Update Agent Context
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteAgent(agent.id);
-                        }}
-                        className="text-destructive"
-                      >
-                        <Trash2 size={16} className="mr-2" /> Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                          >
+                            <MoreVertical size={16} />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openEditAgentForm(agent);
+                            }}
+                          >
+                            <Pencil size={16} className="mr-2" /> Edit Agent
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleUpdateAgentContext(agent);
+                            }}
+                          >
+                            <Settings size={16} className="mr-2" /> Update Agent Context
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteAgent(agent.id);
+                            }}
+                            className="text-destructive"
+                          >
+                            <Trash2 size={16} className="mr-2" /> Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                  {/* Agent's chats dropdown */}
+                  {expandedAgentId === agent.id && (
+                    <div className="ml-4 mt-2 mb-2">
+                      {loadingAgentChats && expandedAgentId === agent.id ? (
+                        <div className="flex justify-center p-2">
+                          <div className="h-5 w-5 border-2 border-sidebar-foreground border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                      ) : agentChats[agent.id]?.length > 0 ? (
+                        <div className="space-y-1">
+                          {agentChats[agent.id].map((chat) => (
+                            <div
+                              key={chat._id}
+                              className={`group flex items-center justify-between px-2 py-2 rounded-lg cursor-pointer transition-colors ml-2
+                                ${pathname === `/chat/${chat._id}` ? 'bg-sidebar-accent' : ''}
+                                hover:bg-sidebar-accent
+                              `}
+                              style={{ marginBottom: '0.25rem' }}
+                            >
+                              <Link
+                                href={`/chat/${chat._id}`}
+                                className="flex items-center gap-2 flex-1"
+                              >
+                                {editingChatId === chat._id ? (
+                                  <input
+                                    type="text"
+                                    value={newTitle}
+                                    onChange={(e) => setNewTitle(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        handleRename(chat._id);
+                                      } else if (e.key === 'Escape') {
+                                        setEditingChatId(null);
+                                        setNewTitle('');
+                                      }
+                                    }}
+                                    onBlur={() => {
+                                      if (newTitle.trim()) {
+                                        handleRename(chat._id);
+                                      } else {
+                                        setEditingChatId(null);
+                                        setNewTitle('');
+                                      }
+                                    }}
+                                    className="bg-transparent border-none outline-none w-full"
+                                    autoFocus
+                                  />
+                                ) : (
+                                  <span className="truncate">{chat.title}</span>
+                                )}
+                              </Link>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  >
+                                    <MoreVertical size={16} />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem
+                                    onClick={() => {
+                                      setEditingChatId(chat._id);
+                                      setNewTitle(chat.title);
+                                    }}
+                                  >
+                                    <Pencil size={16} className="mr-2" /> Rename
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => handleDelete(chat._id)}
+                                    className="text-destructive"
+                                  >
+                                    <Trash2 size={16} className="mr-2" /> Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="px-2 py-1 text-xs text-muted-foreground ml-2">
+                          No chats yet. Create one to get started.
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -644,98 +810,6 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
             ) : (
               <div className="px-2 py-1 text-xs text-muted-foreground">
                 No chats yet. Create one to get started.
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* All Chats Section - Only show when no agent is selected */}
-        {!selectedAgentId && (
-          <div className="space-y-1">
-            {!isCollapsed && (
-              <div className="flex items-center gap-2 px-2 py-1 text-xs font-semibold text-muted-foreground">
-                <MessageSquare size={14} />
-                <span>All Chats</span>
-              </div>
-            )}
-            {isLoading ? (
-              <div className="flex justify-center p-4">
-                <div className="h-5 w-5 border-2 border-sidebar-foreground border-t-transparent rounded-full animate-spin"></div>
-              </div>
-            ) : (
-              <div className="space-y-1">
-                {chats.map((chat) => (
-                  <div
-                    key={chat._id}
-                    className={`group flex items-center justify-between p-2 rounded-lg hover:bg-sidebar-accent transition-colors ${
-                      pathname === `/chat/${chat._id}` ? 'bg-sidebar-accent' : ''
-                    }`}
-                  >
-                    <Link
-                      href={`/chat/${chat._id}`}
-                      className="flex items-center gap-2 flex-1"
-                    >
-                      {!isCollapsed && (
-                        editingChatId === chat._id ? (
-                          <input
-                            type="text"
-                            value={newTitle}
-                            onChange={(e) => setNewTitle(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                handleRename(chat._id);
-                              } else if (e.key === 'Escape') {
-                                setEditingChatId(null);
-                                setNewTitle('');
-                              }
-                            }}
-                            onBlur={() => {
-                              if (newTitle.trim()) {
-                                handleRename(chat._id);
-                              } else {
-                                setEditingChatId(null);
-                                setNewTitle('');
-                              }
-                            }}
-                            className="bg-transparent border-none outline-none w-full"
-                            autoFocus
-                          />
-                        ) : (
-                          <span className="truncate">{chat.title}</span>
-                        )
-                      )}
-                    </Link>
-                    {!isCollapsed && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <MoreVertical size={16} />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setEditingChatId(chat._id);
-                              setNewTitle(chat.title);
-                            }}
-                          >
-                            <Pencil size={16} className="mr-2" /> Rename
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleDelete(chat._id)}
-                            className="text-destructive"
-                          >
-                            <Trash2 size={16} className="mr-2" /> Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
-                  </div>
-                ))}
               </div>
             )}
           </div>
