@@ -9,7 +9,7 @@ import { Agent, CreateAgentInput } from '@/types/agent';
 interface AgentFormProps {
     onSubmit: (agent: CreateAgentInput) => void;
     agentToEdit?: Agent | null;
-    mode: 'create' | 'update';
+    mode: 'create' | 'update' | 'update-context';
 }
 
 export function CreateAgentForm({ onSubmit, agentToEdit = null, mode = 'create' }: AgentFormProps) {
@@ -25,7 +25,7 @@ export function CreateAgentForm({ onSubmit, agentToEdit = null, mode = 'create' 
 
     // Initialize form with agent data if in edit mode
     useEffect(() => {
-        if (agentToEdit && mode === 'update') {
+        if (agentToEdit && (mode === 'update' || mode === 'update-context')) {
             setFormData({
                 name: agentToEdit.name,
                 description: agentToEdit.description,
@@ -69,6 +69,7 @@ export function CreateAgentForm({ onSubmit, agentToEdit = null, mode = 'create' 
                         onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                         placeholder="Agent name"
                         required
+                        disabled={mode === 'update-context'}
                     />
                 </div>
 
@@ -80,6 +81,7 @@ export function CreateAgentForm({ onSubmit, agentToEdit = null, mode = 'create' 
                         onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                         placeholder="Describe your agent's purpose"
                         required
+                        disabled={mode === 'update-context'}
                     />
                 </div>
 
@@ -91,7 +93,13 @@ export function CreateAgentForm({ onSubmit, agentToEdit = null, mode = 'create' 
                         onChange={(e) => setFormData(prev => ({ ...prev, context: e.target.value }))}
                         placeholder="Provide context for your agent"
                         required
+                        className={mode === 'update-context' ? 'border-2 border-primary focus:ring-4 focus:ring-primary/20' : ''}
                     />
+                    {mode === 'update-context' && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                            Update the context information for this agent. This affects how the agent understands user information and preferences.
+                        </p>
+                    )}
                 </div>
 
                 <div className="space-y-2">
@@ -102,6 +110,7 @@ export function CreateAgentForm({ onSubmit, agentToEdit = null, mode = 'create' 
                         onChange={(e) => setFormData(prev => ({ ...prev, instructions: e.target.value }))}
                         placeholder="Provide instructions for your agent"
                         required
+                        disabled={mode === 'update-context'}
                     />
                 </div>
 
@@ -133,7 +142,7 @@ export function CreateAgentForm({ onSubmit, agentToEdit = null, mode = 'create' 
             </div>
             <div className="pt-4 pb-2">
                 <Button type="submit" className="w-full">
-                    {mode === 'create' ? 'Create Agent' : 'Update Agent'}
+                    {mode === 'create' ? 'Create Agent' : mode === 'update' ? 'Update Agent' : 'Update Context'}
                 </Button>
             </div>
         </form>

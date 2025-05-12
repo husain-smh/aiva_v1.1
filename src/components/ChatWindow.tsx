@@ -10,6 +10,7 @@ import { Copy } from 'lucide-react';
 export interface MessageType {
   _id: string;
   role: 'user' | 'assistant';
+  agentId?: string;
   content: string;
   createdAt: string;
 }

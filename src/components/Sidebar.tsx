@@ -53,7 +53,7 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
   const router = useRouter();
   const [agentToEdit, setAgentToEdit] = useState<Agent | null>(null);
   const [isAgentFormOpen, setIsAgentFormOpen] = useState(false);
-  const [agentFormMode, setAgentFormMode] = useState<'create' | 'update'>('create');
+  const [agentFormMode, setAgentFormMode] = useState<'create' | 'update' | 'update-context'>('create');
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [agentChats, setAgentChats] = useState<Record<string, ChatItem[]>>({});
   const [loadingAgentChats, setLoadingAgentChats] = useState(false);
@@ -361,6 +361,49 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
     setIsAgentFormOpen(true);
   };
 
+  const handleUpdateAgentContext = (agent: Agent) => {
+    // Set the agent to edit
+    setAgentToEdit(agent);
+    // Set the form mode to update context
+    setAgentFormMode('update-context');
+    // Open the agent form
+    setIsAgentFormOpen(true);
+  };
+
+  const handleUpdateAgentContextSubmit = async (agentInput: CreateAgentInput) => {
+    try {
+      if (!agentToEdit) return;
+
+      // Only update the context field
+      const updatedAgent: Agent = {
+        ...agentToEdit,
+        context: agentInput.context
+      };
+      
+      const response = await fetch(`/api/agent/updateAgent`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatedAgent),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update agent context');
+      }
+
+      setAgents(agents.map(agent => 
+        agent.id === agentToEdit.id ? updatedAgent : agent
+      ));
+      
+      setAgentToEdit(null);
+      setIsAgentFormOpen(false);
+      setAgentFormMode('create');
+    } catch (error) {
+      console.error('Error updating agent context:', error);
+    }
+  };
+
   return (
     <div
       className={`flex flex-col h-full border-r border-border bg-sidebar text-sidebar-foreground transition-all duration-300 ${
@@ -408,12 +451,18 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
               <SheetContent>
                 <SheetHeader>
                   <SheetTitle>
-                    {agentFormMode === 'create' ? 'Create New Agent' : 'Update Agent'}
+                    {agentFormMode === 'create' ? 'Create New Agent' : agentFormMode === 'update' ? 'Update Agent' : 'Update Agent Context'}
                   </SheetTitle>
                 </SheetHeader>
                 <ScrollArea className="h-[calc(100vh-100px)] mt-4 pr-4">
                   <CreateAgentForm 
-                    onSubmit={agentFormMode === 'create' ? handleCreateAgent : handleUpdateAgent} 
+                    onSubmit={
+                      agentFormMode === 'create' 
+                        ? handleCreateAgent 
+                        : agentFormMode === 'update' 
+                          ? handleUpdateAgent 
+                          : handleUpdateAgentContextSubmit
+                    } 
                     agentToEdit={agentToEdit}
                     mode={agentFormMode}
                   />
@@ -487,6 +536,14 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
                         }}
                       >
                         <Pencil size={16} className="mr-2" /> Edit Agent
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleUpdateAgentContext(agent);
+                        }}
+                      >
+                        <Settings size={16} className="mr-2" /> Update Agent Context
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={(e) => {

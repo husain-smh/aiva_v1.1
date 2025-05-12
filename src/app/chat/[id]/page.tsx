@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react';
 import Sidebar from '@/components/Sidebar';
 import ChatWindow, { MessageType } from '@/components/ChatWindow';
 import ConnectToolsButton from '@/components/ConnectToolsButton';
+import UpdateUserPreferencesButton from '@/components/UpdateUserPreferencesButton';
 import { Agent } from '@/types/agent';
 
 export default function ChatById() {
@@ -87,6 +88,7 @@ export default function ChatById() {
       const userMessage: MessageType = {
         _id: tempUserMsgId,
         role: 'user',
+        agentId: chatAgent?.id,
         content,
         createdAt: new Date().toISOString(),
       };
@@ -160,7 +162,10 @@ export default function ChatById() {
               </span>
             )}
           </div>
-          <ConnectToolsButton onToolsConnected={handleToolsConnected} />
+          <div className="flex items-center gap-2">
+            <UpdateUserPreferencesButton />
+            <ConnectToolsButton onToolsConnected={handleToolsConnected} />
+          </div>
         </div>
         
         <div className="flex-1 overflow-hidden">

@@ -9,6 +9,18 @@ import { loadComposioTools, executeComposioTool, COMPOSIO_ACTIONS, findToolsByUs
 import { runComposioAgentWithTools } from '@/lib/langchain-composio';
 import { executingTheTools } from '@/lib/langchain-composio-temp';
 import { Agent } from '@/models/Agent';
+import { ShortTermMemory, createShortTermMemory } from '@/lib/shortTermMemory';
+import { BufferMemory } from 'langchain/memory';
+
+// Conditionally import chat-memory based on its availability
+let createChatMemory: any;
+try {
+  const chatMemoryModule = require('@/lib/memory/chat-memory');
+  createChatMemory = chatMemoryModule.createChatMemory;
+} catch (error) {
+  console.log('Chat memory module not available:', error);
+  createChatMemory = null;
+}
 
 /**
  * Generate a concise three-word title from the first message
@@ -40,6 +52,13 @@ async function generateChatTitle(message: string): Promise<string> {
     return 'New Chat';
   }
 }
+
+/**
+ * Analyze prompt to detect which apps might be needed
+ * @param message User's message
+ * @param supportedApps List of supported app names
+ * @returns Array of app names that might be relevant
+ */
 async function findappsfromprompt(message: string, supportedApps: string[]): Promise<string> {
   try {
     const response = await openai.chat.completions.create({
@@ -47,19 +66,29 @@ async function findappsfromprompt(message: string, supportedApps: string[]): Pro
       messages: [
         {
           role: 'system',
-          content: 'here is the list of apps you can use: ' + supportedApps.join(', ') + '. Please return the list of apps in array format separated by commas. If you cannot find any apps, return empty array "[]".'
+          content: `You are a tool analyzer that determines which tools a user might need based on their request.
+Available tools are: ${supportedApps.join(', ')}.
+
+Return ONLY a valid JSON array of strings containing the tool names needed. 
+Example responses:
+- If GitHub is needed: ["github"]
+- If Gmail and Google Drive are needed: ["gmail", "googledrive"]
+- If no tools are needed: []
+
+Do not include ANY explanation, ONLY return the JSON array.
+Only include tools from the available list.`
         },
         {
           role: 'user',
           content: message
         }
       ],
-      temperature: 0.7,
-      max_tokens: 20
+      temperature: 0.3,
+      max_tokens: 50
     });
 
     const relevantApps = response.choices[0].message.content?.trim() || '[]';
-    console.log("this is the response of apps acc to ai that are to be used",response.choices[0].message.content?.trim())
+    console.log("Apps detected for this request:", relevantApps);
     return relevantApps;
   } catch (error) {
     console.error('Error finding apps from prompt:', error);
@@ -130,91 +159,111 @@ export async function POST(request: NextRequest) {
       agentData = await Agent.findById(currentAgentId);
     }
 
-    // Save user message
-    const userMessage = await Message.create({
-      chatId: currentChatId,
-      role: 'user',
-      content,
-    });
+    // Initialize short-term memory for this chat
+    const shortTermMemory = createShortTermMemory(currentChatId, currentAgentId);
+    
+    // Save user message to short-term memory
+    const userMessage = await shortTermMemory.addMessage('user', content);
 
-    // Get previous messages for context
-    const previousMessages = await Message.find({ chatId: currentChatId })
-      .sort({ createdAt: 1 })
-      .limit(10);
-
-    // Format messages for OpenAI
-    const messages = previousMessages.map(msg => ({
-      role: msg.role as "user" | "assistant" | "system",
-      content: msg.content,
-    }));
+    // Get previous messages for context from short-term memory
+    const contextMessages = await shortTermMemory.getFormattedContextMessages();
+    
+    // Initialize buffer memory if createChatMemory is available
+    let bufferMemory: BufferMemory | null = null;
+    if (createChatMemory && currentAgentId && currentChatId) {
+      try {
+        bufferMemory = createChatMemory({
+          agentId: currentAgentId,
+          chatId: currentChatId,
+          returnMessages: true,
+        });
+        console.log('Buffer memory initialized from DynamoDB for chat history');
+      } catch (memoryError) {
+        console.error('Error initializing buffer memory:', memoryError);
+        // Continue without buffer memory
+      }
+    }
 
     try {
       // Define the apps we want to search across (apps user has connected)
       const supportedApps = ["github", "gmail", "whatsapp", "googlecalendar", "googledrive", "googledocs","yousearch","linkedin","slack","jira","googlesheets"];
       let assistantMessageText = '';
-      let toolResult = null;
       
       // 2. Find semantic tools needed based on the prompt
       console.log('Finding semantic tools for prompt...');
-      // const semanticTools = await findToolsByUseCase(content, supportedApps, true);
-      const semanticTools = await findappsfromprompt(content, supportedApps);
+      const semanticToolsResponse = await findappsfromprompt(content, supportedApps);
       let parsedSemanticTools: string[] = [];
-      if (typeof semanticTools === "string") {
-        try {
-          // Try parsing the string as JSON
-          parsedSemanticTools = JSON.parse(semanticTools);
+      
+      // Try to parse the response to get semantic tools
+      try {
+        if (typeof semanticToolsResponse === "string") {
+          // Strip any non-JSON characters that might be in the response
+          const cleanedResponse = semanticToolsResponse.trim().replace(/^[^[\]]*\[/, '[').replace(/\][^[\]]*$/, ']');
           
-          // Ensure the result is an array (if it's not, set an empty array)
-          if (!Array.isArray(parsedSemanticTools)) {
-            console.error("Parsed result is not an array, defaulting to empty array.");
-            parsedSemanticTools = [];
+          try {
+            // Try parsing the string as JSON
+            const parsed = JSON.parse(cleanedResponse);
+            
+            // Ensure the result is an array of strings
+            if (Array.isArray(parsed)) {
+              parsedSemanticTools = parsed.filter(item => typeof item === 'string');
+              console.log('Parsed semantic tools:', parsedSemanticTools);
+            } else {
+              console.log('Parsed result is not an array, defaulting to empty array');
+            }
+          } catch (parseError) {
+            console.error("Error parsing semanticTools string:", parseError);
+            // Try to extract app names if JSON parsing fails
+            const appMatches = cleanedResponse.match(/"([^"]+)"|'([^']+)'|[a-zA-Z0-9]+/g);
+            if (appMatches) {
+              parsedSemanticTools = appMatches
+                .map(match => match.replace(/['"]/g, ''))
+                .filter(app => supportedApps.includes(app));
+              console.log('Extracted semantic tools using regex:', parsedSemanticTools);
+            }
           }
-        } catch (error) {
-          console.error("Error parsing semanticTools string:", error);
+        } else if (Array.isArray(semanticToolsResponse)) {
+          // If already an array, filter for strings
+          parsedSemanticTools = (semanticToolsResponse as any[]).filter(item => typeof item === 'string');
         }
-      } else if (Array.isArray(semanticTools)) {
-        // If already an array, just assign it
-        parsedSemanticTools = semanticTools;
-      } else {
-        // If it's neither a string nor an array, fall back to an empty array
-        console.error("Unexpected type for semanticTools, defaulting to empty array.");
-        parsedSemanticTools = [];
+      } catch (error) {
+        console.error('Error processing semantic tools:', error);
+        // Continue with empty array
       }
       
-      if (parsedSemanticTools.length > 0) {
-        console.log(`Found ${parsedSemanticTools.length} relevant tools for prompt`);
-        
-        // 3. Pass prompt and semantic tools to LangChain for execution
-        console.log('Executing with LangChain...');
-        
-        // Create agent config from agentData if available
-        const agentConfig = agentData ? {
-          name: agentData.name,
-          description: agentData.description,
-          context: agentData.context,
-          instructions: agentData.instructions,
-          temperature: 0.2,
-        } : undefined;
-        
-        // Pass agent configuration to executingTheTools
-        const langchainResponse = await executingTheTools(content, parsedSemanticTools, agentConfig, {});
-        assistantMessageText = langchainResponse.output;
-      } 
-      else {
-        // Fallback to direct OpenAI if no semantic tools found
-        console.log('No semantic tools found, using direct OpenAI approach...');
-        const openAIResponse = await processWithOpenAI(content, messages);
-        assistantMessageText = openAIResponse.content;
-        toolResult = openAIResponse.toolResult;
-      }
-
-      // Save assistant message
-      const dbAssistantMessage = await Message.create({
-        chatId: currentChatId,
-        role: 'assistant',
-        content: assistantMessageText,
-        toolResult: toolResult ? JSON.stringify(toolResult) : undefined,
+      // Validate that all tools in parsedSemanticTools are in supportedApps
+      parsedSemanticTools = parsedSemanticTools.filter(tool => 
+        typeof tool === 'string' && supportedApps.includes(tool)
+      );
+      
+      console.log('Final semantic tools to be used:', parsedSemanticTools);
+      
+      // Get conversation context as a string
+      const conversationContext = await shortTermMemory.getContextString();
+      
+      // Create agent config from agentData if available
+      const agentConfig = agentData ? {
+        name: agentData.name,
+        description: agentData.description,
+        context: agentData.context,
+        instructions: agentData.instructions + 
+          (conversationContext ? "\n\nPrevious conversation:\n" + conversationContext : ""),
+        temperature: 0.2,
+      } : undefined;
+      
+      // Always use LangChain agent, regardless of whether tools are needed or not
+      console.log('Executing with LangChain agent...');
+      
+      // Pass agent configuration, context messages, and buffer memory to executingTheTools
+      const langchainResponse = await executingTheTools(content, parsedSemanticTools, agentConfig, {
+        contextMessages: contextMessages,
+        chatMemory: bufferMemory
       });
+      
+      assistantMessageText = langchainResponse.output;
+
+      // Save assistant message to short-term memory
+      const dbAssistantMessage = await shortTermMemory.addMessage('assistant', assistantMessageText);
 
       return NextResponse.json({
         userMessage,
@@ -224,14 +273,10 @@ export async function POST(request: NextRequest) {
     } catch (aiError) {
       console.error('AI processing error:', aiError);
       
-      // Save a fallback message
+      // Save a fallback message to short-term memory
       const fallbackMessage = 'I apologize, but I encountered an error processing your request. Please try again.';
       
-      const assistantMessage = await Message.create({
-        chatId: currentChatId,
-        role: 'assistant',
-        content: fallbackMessage,
-      });
+      const assistantMessage = await shortTermMemory.addMessage('assistant', fallbackMessage);
 
       return NextResponse.json({
         userMessage,
@@ -247,136 +292,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-/**
- * Process the request using direct OpenAI API calls
- * @param content User's message
- * @param messages Previous conversation messages
- * @returns Processed response
- */
-async function processWithOpenAI(content: string, messages: any[]) {
-  let functionToActionMap: Record<string, string> = {};
-  let tools = [];
-  
-  try {
-    // Define the apps we want to search across
-    const supportedApps = ["gmail", "github", "whatsapp"];
-    
-    // Use semantic search to find relevant tools
-    const semanticTools = await findToolsByUseCase(
-      content,
-      supportedApps,
-      true
-    );
-    
-    if (semanticTools && semanticTools.length > 0) {
-      console.log(`Found ${semanticTools.length} relevant tools via semantic search`);
-      tools = semanticTools;
-      
-      // Map function names to action names
-      semanticTools.forEach(tool => {
-        if (tool.function && tool.function.name) {
-          const functionName = tool.function.name;
-          // Using type assertion since Composio tools have additional metadata
-          const actionName = (tool as any).metadata?.actionName || functionName;
-          functionToActionMap[functionName] = actionName;
-        }
-      });
-    } else {
-      // Fallback to predefined tools
-      console.log('No relevant tools found via semantic search, using default set');
-      tools = await loadComposioTools([
-        COMPOSIO_ACTIONS.GMAIL_SEND_AN_EMAIL,
-        COMPOSIO_ACTIONS.GMAIL_GET_CONTACTS,
-        COMPOSIO_ACTIONS.GITHUB_STAR_A_REPOSITORY_FOR_THE_AUTHENTICATED_USER
-      ]);
-      
-      // Create mappings for predefined tools
-      tools.forEach(tool => {
-        if (tool.function && tool.function.name) {
-          functionToActionMap[tool.function.name] = tool.function.name;
-        }
-      });
-    }
-  } catch (toolsError) {
-    console.error('Error finding tools:', toolsError);
-    // Fallback to predefined tools
-    tools = await loadComposioTools([
-      COMPOSIO_ACTIONS.GMAIL_SEND_AN_EMAIL,
-      COMPOSIO_ACTIONS.GMAIL_GET_CONTACTS,
-      COMPOSIO_ACTIONS.GITHUB_STAR_A_REPOSITORY_FOR_THE_AUTHENTICATED_USER
-    ]);
-    
-    tools.forEach(tool => {
-      if (tool.function && tool.function.name) {
-        functionToActionMap[tool.function.name] = tool.function.name;
-      }
-    });
-  }
-  
-  // Generate response from OpenAI with tool calling
-  const response = await openai.chat.completions.create({
-    model: 'gpt-3.5-turbo',
-    messages,
-    temperature: 0.7,
-    max_tokens: 500,
-    tools,
-    tool_choice: 'auto',
-  });
-
-  const assistantMessage = response.choices[0].message;
-  let assistantMessageText = assistantMessage.content || '';
-  let toolResult = null;
-
-  // Check if the model wants to call a function
-  if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
-    const toolCall = assistantMessage.tool_calls[0];
-    const functionName = toolCall.function.name;
-    
-    // Get the correct Composio action name from our mapping
-    const actionName = functionToActionMap[functionName] || functionName;
-    
-    try {
-      // Parse arguments
-      const args = JSON.parse(toolCall.function.arguments);
-      
-      // Execute the Composio tool with the correct action name
-      toolResult = await executeComposioTool(actionName, args);
-      
-      // Format messages for the follow-up request
-      const toolCallMessages = [
-        ...messages,
-        {
-          role: "assistant" as const,
-          content: null,
-          tool_calls: [toolCall]
-        },
-        {
-          role: "tool" as const,
-          tool_call_id: toolCall.id,
-          content: JSON.stringify(toolResult)
-        }
-      ];
-      
-      // Generate a follow-up response
-      const followUpResponse = await openai.chat.completions.create({
-        model: 'gpt-4',
-        messages: toolCallMessages,
-        temperature: 0.7,
-        max_tokens: 500,
-      });
-      
-      assistantMessageText = followUpResponse.choices[0].message.content || 'I processed your request, but I couldn\'t generate a response.';
-    } catch (toolError) {
-      console.error('Error executing tool:', toolError);
-      const errorMessage = toolError instanceof Error ? toolError.message : 'Unknown error';
-      assistantMessageText = `I attempted to use ${functionName}, but encountered an error: ${errorMessage}`;
-    }
-  }
-  
-  return {
-    content: assistantMessageText,
-    toolResult
-  };
 } 

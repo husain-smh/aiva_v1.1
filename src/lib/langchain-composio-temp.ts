@@ -6,8 +6,8 @@ import { pull } from "langchain/hub";
 import { findToolsByUseCase } from "./composio";
 import { getServerSession } from "next-auth";
 import { ConsoleCallbackHandler } from "@langchain/core/tracers/console";
-
-
+import { BufferMemory } from "langchain/memory";
+import { AIMessage, HumanMessage } from "@langchain/core/messages";
 
 export async function executingTheTools(
   input: string,
@@ -19,7 +19,11 @@ export async function executingTheTools(
     instructions?: string;
     temperature?: number;
   },
-  options?: { callbacks?: any[] }
+  options?: { 
+    callbacks?: any[],
+    contextMessages?: Array<{ role: string, content: string }>,
+    chatMemory?: BufferMemory | null
+  }
 ) {
    // 1. Detect apps needed
   //  const serviceType = findAppsFromSemanticTools(semanticTools);
@@ -42,6 +46,12 @@ export async function executingTheTools(
     ...agentConfig,
   };
 
+  // Get the buffer memory if provided in options
+  const bufferMemory = options?.chatMemory || undefined;
+  if (bufferMemory) {
+    console.log('Using provided buffer memory for chat history');
+  }
+
   const session = await getServerSession();
   const llm = new ChatOpenAI({
     temperature: finalAgentConfig.temperature,
@@ -60,10 +70,33 @@ export async function executingTheTools(
     } catch (err) {
       console.error(`Error connecting to ${app}:`, err);
     }
-  console.log('toolset - ', toolset);
   }
+  
+  console.log('toolset - ', toolset);
+  
   // 2. Fetch the actual tools for the selected apps
-  const allTools = await toolset.getTools({ apps: semanticTools });
+  let allTools: any[] = [];
+  try {
+    // Only try to get tools if we have valid semanticTools
+    if (semanticTools && Array.isArray(semanticTools) && semanticTools.length > 0) {
+      allTools = await toolset.getTools({ apps: semanticTools });
+    } else {
+      console.log('No semantic tools provided, skipping tool retrieval');
+    }
+  } catch (error) {
+    console.error('Error getting tools:', error);
+    // Continue with empty tools array
+  }
+  
+  // Build previous messages context string
+  let previousMessagesContext = "";
+  if (options?.contextMessages && options.contextMessages.length > 0) {
+    previousMessagesContext = "\n\n# Previous Conversation Context\n";
+    options.contextMessages.forEach(msg => {
+      const role = msg.role === 'user' ? 'User' : msg.role === 'assistant' ? 'Assistant' : 'System';
+      previousMessagesContext += `${role}: ${msg.content}\n`;
+    });
+  }
   
   // Build a custom system message with agent info, context, and instructions
   const systemMessage = `
@@ -71,20 +104,23 @@ export async function executingTheTools(
 You are ${finalAgentConfig.name}, ${finalAgentConfig.description}
 
 # Available Tools
-You have access to the following tools/apps:
-${semanticTools.map(tool => `- ${tool}`).join('\n')}
+${semanticTools.length > 0 ? 
+  `You have access to the following tools/apps:
+${semanticTools.map(tool => `- ${tool}`).join('\n')}` : 
+  `You don't have any tools available for this conversation. Please respond using only your knowledge.`}
 
 # Context
 ${finalAgentConfig.context}
 
 # Instructions
 ${finalAgentConfig.instructions}
+${previousMessagesContext}
 
 # Response Guidelines
 1. Always identify yourself as ${finalAgentConfig.name}
-2. Use available tools when appropriate to fulfill user requests
+2. ${semanticTools.length > 0 ? 'Use available tools when appropriate to fulfill user requests' : 'Provide helpful responses based on your knowledge'}
 3. Think step by step when solving complex problems
-4. If you need information from a connected service, use the appropriate tool
+4. ${semanticTools.length > 0 ? 'If you need information from a connected service, use the appropriate tool' : 'If you need information you don\'t have, explain what you would need to help further'}
 5. Be helpful, concise, and professional in your responses
 `;
 
@@ -95,25 +131,102 @@ ${finalAgentConfig.instructions}
     new MessagesPlaceholder("agent_scratchpad"),
   ]);
 
-  // Create the agent with our custom prompt
-  const agent = await createOpenAIFunctionsAgent({
-    llm,
-    tools: allTools,
-    prompt: promptTemplate,
-  });
-  // console.log("Agent created:", agent);
+  // Create a direct prompt template for when we don't have tools
+  const directPromptTemplate = ChatPromptTemplate.fromMessages([
+    ["system", systemMessage],
+    ["human", "{input}"]
+  ]);
 
-  // 5. Wrap it in an executor (verbose logs all steps)
-  const agentExecutor = new AgentExecutor({ 
-    agent, 
-    tools: allTools, 
-    verbose: false,
-    callbacks: options?.callbacks || [new ConsoleCallbackHandler()]
-  });
+  // Different execution paths based on whether we have tools or not
+  let response;
+  
+  // If we have tools, use the function calling agent
+  if (allTools && allTools.length > 0) {
+    // Create the agent with our custom prompt and tools
+    const agent = await createOpenAIFunctionsAgent({
+      llm,
+      tools: allTools,
+      prompt: promptTemplate,
+    });
+    
+    // Create the agent executor with memory if available
+    const executorConfig: any = { 
+      agent, 
+      tools: allTools, 
+      verbose: false,
+      callbacks: options?.callbacks || [new ConsoleCallbackHandler()]
+    };
 
-  // 6. Invoke the agent on the user's input
-  const response = await agentExecutor.invoke({ input });
-  console.log("Agent response:", response);
+    // Add memory to the executor if available
+    if (bufferMemory) {
+      executorConfig.memory = bufferMemory;
+    }
+
+    try {
+      const agentExecutor = new AgentExecutor(executorConfig);
+
+      // Invoke the agent on the user's input with the previous conversation
+      const agentInput: Record<string, any> = { input };
+      
+      // Add memory variables to input if needed
+      if (bufferMemory) {
+        // This will be populated by the memory system
+        agentInput.chat_history = '';
+      }
+
+      // Use a timeout to prevent agent from running too long
+      const timeoutPromise = new Promise<any>((_, reject) => {
+        setTimeout(() => reject(new Error('Agent execution timed out')), 60000); // 60-second timeout
+      });
+
+      // Execute the agent with a timeout
+      response = await Promise.race([
+        agentExecutor.invoke(agentInput),
+        timeoutPromise
+      ]);
+
+      console.log("Agent response:", response);
+    } catch (error) {
+      console.error("Error during agent execution:", error);
+      // Fall back to direct LLM call when agent execution fails
+      console.log("Falling back to direct LLM call");
+      const result = await llm.invoke([
+        ["system", systemMessage],
+        ["human", input]
+      ]);
+      response = { output: result.content };
+    }
+  } else {
+    // When no tools are available, use direct LLM call without function calling
+    console.log("No tools available, using direct LLM call");
+    try {
+      // Direct call to the language model
+      const directInput = { input };
+      if (bufferMemory) {
+        // Use proper message class for chat history
+        bufferMemory.chatHistory.addMessage(new HumanMessage(input));
+      }
+      
+      const result = await llm.invoke([
+        ["system", systemMessage],
+        ["human", input]
+      ]);
+      
+      if (bufferMemory) {
+        // Use proper message class for chat history
+        bufferMemory.chatHistory.addMessage(new AIMessage(result.content.toString()));
+      }
+      
+      response = { output: result.content };
+      console.log("Direct LLM response:", response);
+    } catch (error) {
+      console.error("Error during direct LLM call:", error);
+      // Return a fallback response for direct call errors
+      response = {
+        output: "I encountered an error while processing your request. Please try again or rephrase your question."
+      };
+    }
+  }
 
   return response;
 }
