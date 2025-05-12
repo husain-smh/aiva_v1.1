@@ -410,6 +410,29 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
         isCollapsed ? 'w-16' : 'w-64'
       }`}
     >
+      {/* Agent Creation Modal - always mounted */}
+      <Sheet open={isAgentFormOpen} onOpenChange={setIsAgentFormOpen}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>
+              {agentFormMode === 'create' ? 'Create New Agent' : agentFormMode === 'update' ? 'Update Agent' : 'Update Agent Context'}
+            </SheetTitle>
+          </SheetHeader>
+          <ScrollArea className="h-[calc(100vh-100px)] mt-4 pr-4">
+            <CreateAgentForm 
+              onSubmit={
+                agentFormMode === 'create' 
+                  ? handleCreateAgent 
+                  : agentFormMode === 'update' 
+                    ? handleUpdateAgent 
+                    : handleUpdateAgentContextSubmit
+              } 
+              agentToEdit={agentToEdit}
+              mode={agentFormMode}
+            />
+          </ScrollArea>
+        </SheetContent>
+      </Sheet>
       <div className="flex items-center justify-between p-4 border-b border-border">
         {!isCollapsed && <h2 className="text-xl font-bold">AIVA</h2>}
         <Button
@@ -423,61 +446,24 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
       </div>
 
       <div className="flex-1 overflow-y-auto p-2">
-        <div className="flex items-center justify-between mb-2">
-          <button
-            onClick={handleNewChat}
-            className="flex items-center gap-2 p-2 rounded-lg hover:bg-sidebar-accent text-sidebar-foreground transition-colors"
-          >
-            <PlusCircle size={20} />
-            {!isCollapsed && <span>New Chat</span>}
-          </button>
-
-          {!isCollapsed && (
-            <Sheet open={isAgentFormOpen} onOpenChange={setIsAgentFormOpen}>
-              <SheetTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="rounded-full"
-                  onClick={() => {
-                    setAgentFormMode('create');
-                    setAgentToEdit(null);
-                    setIsAgentFormOpen(true);
-                  }}
-                >
-                  <Bot size={20} />
-                </Button>
-              </SheetTrigger>
-              <SheetContent>
-                <SheetHeader>
-                  <SheetTitle>
-                    {agentFormMode === 'create' ? 'Create New Agent' : agentFormMode === 'update' ? 'Update Agent' : 'Update Agent Context'}
-                  </SheetTitle>
-                </SheetHeader>
-                <ScrollArea className="h-[calc(100vh-100px)] mt-4 pr-4">
-                  <CreateAgentForm 
-                    onSubmit={
-                      agentFormMode === 'create' 
-                        ? handleCreateAgent 
-                        : agentFormMode === 'update' 
-                          ? handleUpdateAgent 
-                          : handleUpdateAgentContextSubmit
-                    } 
-                    agentToEdit={agentToEdit}
-                    mode={agentFormMode}
-                  />
-                </ScrollArea>
-              </SheetContent>
-            </Sheet>
-          )}
-        </div>
-
         {/* Agents Section - Updated to handle selection */}
         {!isCollapsed && agents.length > 0 && (
           <div className="mb-4">
-            <div className="flex items-center gap-2 px-2 py-1 text-xs font-semibold text-muted-foreground">
-              <Bot size={14} />
+            <div className="flex justify-between items-center gap-2 px-2 py-1 text-xs font-semibold text-muted-foreground">
+              {/* <Bot size={14} /> */}
               <span>Agents</span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5 p-0 ml-1"
+                onClick={() => {
+                  setAgentFormMode('create');
+                  setAgentToEdit(null);
+                  setIsAgentFormOpen(true);
+                }}
+              >
+                <span className="text-lg leading-none">+</span>
+              </Button>
             </div>
             <div className="space-y-1">
               {agents.map((agent) => (
@@ -516,7 +502,6 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
                   ) : (
                     <span className="truncate text-sm flex-1">{agent.name}</span>
                   )}
-                  
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
@@ -565,8 +550,8 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
         {/* Agent-specific chats section */}
         {selectedAgentId && !isCollapsed && (
           <div className="mb-4">
-            <div className="flex items-center justify-between px-2 py-1">
-              <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+            <div className="flex justify-between items-center gap-2 px-2 py-1 text-xs font-semibold text-muted-foreground">
+              <div className="flex items-center gap-2">
                 <MessageSquare size={14} />
                 <span>Agent Chats</span>
               </div>
@@ -579,7 +564,6 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
                 <PlusCircle size={14} />
               </Button>
             </div>
-            
             {loadingAgentChats ? (
               <div className="flex justify-center p-4">
                 <div className="h-5 w-5 border-2 border-sidebar-foreground border-t-transparent rounded-full animate-spin"></div>
