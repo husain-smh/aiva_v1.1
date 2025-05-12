@@ -20,6 +20,7 @@ export default function ChatById() {
   const [sendingMessage, setSendingMessage] = useState(false);
   const [chatTitle, setChatTitle] = useState('');
   const [chatAgent, setChatAgent] = useState<Agent | null>(null);
+  const [showRightSidebar, setShowRightSidebar] = useState(false);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -120,12 +121,14 @@ export default function ChatById() {
         data.userMessage,
         data.assistantMessage,
       ]);
+      setShowRightSidebar(true);
     } catch (error) {
       console.error('Error sending message:', error);
       // Remove the temporary message on error
       setMessages((prev) => prev.filter((msg) => !msg._id.startsWith('temp-')));
     } finally {
       setSendingMessage(false);
+     
     }
   };
 
@@ -149,7 +152,8 @@ export default function ChatById() {
   return (
     <div className="flex h-full">
       <Sidebar user={session.user} />
-      
+      <div className="flex flex-1 h-full overflow-hidden">
+      {/* Main Chat Area */}
       <div className="flex flex-col flex-1 h-full">
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <div className="flex items-center gap-2">
@@ -175,6 +179,9 @@ export default function ChatById() {
             onSendMessage={handleSendMessage}
           />
         </div>
+      </div>
+
+      {/* Right Sidebar */}
       </div>
     </div>
   );
