@@ -4,6 +4,7 @@ import { ChatPromptTemplate, MessagesPlaceholder } from "@langchain/core/prompts
 import { LangchainToolSet } from "composio-core";
 import { pull } from "langchain/hub";
 import { findToolsByUseCase } from "./composio";
+import { ToolTrackingCallbackHandler } from "./customCallbackLangchain";
 import { getServerSession } from "next-auth";
 import { ConsoleCallbackHandler } from "@langchain/core/tracers/console";
 import { BufferMemory } from "langchain/memory";
@@ -25,10 +26,16 @@ export async function executingTheTools(
     chatMemory?: BufferMemory | null
   }
 ) {
-   // 1. Detect apps needed
-  //  const serviceType = findAppsFromSemanticTools(semanticTools);
+  //Create our custom callback handler
+  const toolTracker = new ToolTrackingCallbackHandler();
+  const callbacks = options?.callbacks || [];
+  callbacks.push(toolTracker);
+//create a new options object with the callbacks
+  const optionsWithCallbacks = {
+    ...(options || {}),
+    callbacks: callbacks
+  };
 
-  // console.log("User input:", input);
   console.log("Semantic tools pre-filtered:", semanticTools);
   
   // Default agent configuration
@@ -64,15 +71,13 @@ export async function executingTheTools(
   for (const app of semanticTools){
     try {
       const connection = await toolset.connectedAccounts.initiate({ appName: app });
-      // if (connection?.needsToConnect) {
-      //   console.log(`User needs to connect ${app} at: ${connection.redirectUrl}`);
-      // }
+  
     } catch (err) {
       console.error(`Error connecting to ${app}:`, err);
     }
   }
   
-  console.log('toolset - ', toolset);
+  
   
   // 2. Fetch the actual tools for the selected apps
   let allTools: any[] = [];
@@ -154,7 +159,7 @@ ${previousMessagesContext}
       agent, 
       tools: allTools, 
       verbose: false,
-      callbacks: options?.callbacks || [new ConsoleCallbackHandler()]
+      callbacks: optionsWithCallbacks.callbacks
     };
 
     // Add memory to the executor if available
@@ -184,8 +189,10 @@ ${previousMessagesContext}
         agentExecutor.invoke(agentInput),
         timeoutPromise
       ]);
+      const toolExecutionData = toolTracker.getToolExecutionData();
+      console.log("Tool execution Summary:", JSON.stringify(toolExecutionData, null, 2));
 
-      console.log("Agent response:", response);
+      // console.log("Agent response:", response);
     } catch (error) {
       console.error("Error during agent execution:", error);
       // Fall back to direct LLM call when agent execution fails
