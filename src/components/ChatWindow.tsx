@@ -7,6 +7,7 @@ import { ScrollArea } from './ui/scroll-area';
 import { Button } from './ui/button';
 import { Send } from 'lucide-react';
 import { Textarea } from './ui/textarea';
+import { v4 as uuidv4 } from 'uuid';
 
 interface ChatWindowProps {
   chatId: string;
@@ -15,11 +16,13 @@ interface ChatWindowProps {
 const ChatWindow: FC<ChatWindowProps> = ({ chatId }) => {
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [pendingMessages, setPendingMessages] = useState<Message[]>([]);
+  const [showLoading, setShowLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const { selectedChatId, setSelectedChatId, messages, fetchMessages } = useChatStore();
+  const { selectedChatId, setSelectedChatId, messages, fetchMessages, setMessages } = useChatStore();
 
   useEffect(() => {
     setSelectedChatId(chatId);
@@ -38,34 +41,47 @@ const ChatWindow: FC<ChatWindowProps> = ({ chatId }) => {
     if (bottomRef.current) {
       bottomRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages]);
+  }, [messages, pendingMessages, showLoading]);
 
   const handleSendMessage = useCallback(async () => {
     if (!message.trim() || isSending) return;
 
     setIsSending(true);
+    const userMsg: Message = {
+      _id: uuidv4(),
+      chatId: selectedChatId || '',
+      role: 'user',
+      content: message,
+      createdAt: new Date().toISOString(),
+    };
+    setPendingMessages((prev) => [...prev, userMsg]);
+    setShowLoading(true);
+    setMessage('');
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
     try {
       const response = await fetch('/api/message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          content: message,
+          content: userMsg.content,
           chatId: selectedChatId
         }),
       });
 
       if (!response.ok) throw new Error('Failed to send message');
 
-      setMessage('');
-      if (textareaRef.current) {
-        textareaRef.current.style.height = 'auto';
-      }
       // Fetch updated messages after sending
       if (selectedChatId) {
         await fetchMessages(selectedChatId);
       }
+      setPendingMessages([]);
+      setShowLoading(false);
     } catch (error) {
       console.error('Error sending message:', error);
+      setPendingMessages([]);
+      setShowLoading(false);
     } finally {
       setIsSending(false);
     }
@@ -87,11 +103,22 @@ const ChatWindow: FC<ChatWindowProps> = ({ chatId }) => {
   return (
     <div className="flex flex-col h-full">
       <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-        {messages.map((msg) => (
-          <div key={msg._id} className={msg.role === 'user' ? 'text-right' : 'text-left'}>
+        {[...messages, ...pendingMessages].map((msg, idx) => (
+          <div key={msg._id + idx} className={msg.role === 'user' ? 'text-right' : 'text-left'}>
             <div className="inline-block px-3 py-2 rounded bg-muted mb-2">{msg.content}</div>
           </div>
         ))}
+        {showLoading && (
+          <div className="text-left">
+            <div className="inline-block px-3 py-2 rounded bg-muted mb-2 w-1/2 min-w-[120px] max-w-[320px]">
+              <div className="flex items-center h-6">
+                <span className="dot bg-primary animate-bounce mr-2" style={{ animationDelay: '0s' }} />
+                <span className="dot bg-primary animate-bounce mx-2" style={{ animationDelay: '0.2s' }} />
+                <span className="dot bg-primary animate-bounce ml-2" style={{ animationDelay: '0.4s' }} />
+              </div>
+            </div>
+          </div>
+        )}
         <div ref={bottomRef} />
       </ScrollArea>
       
@@ -118,4 +145,21 @@ const ChatWindow: FC<ChatWindowProps> = ({ chatId }) => {
   );
 };
 
-export default ChatWindow; 
+export default ChatWindow;
+
+<style jsx global>{`
+  .dot {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    opacity: 0.8;
+  }
+  .animate-bounce {
+    animation: dot-bounce 1s infinite both;
+  }
+  @keyframes dot-bounce {
+    0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
+    40% { transform: scale(1.2); opacity: 1; }
+  }
+`}</style> 
