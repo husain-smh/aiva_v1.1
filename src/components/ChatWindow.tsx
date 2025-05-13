@@ -2,7 +2,7 @@
 
 import { FC, useState, useCallback, useEffect, useRef } from 'react';
 import { useChatStore } from '@/store/chatStore';
-import { MessageType } from '@/types/chat';
+import { Message } from '@/types/chat';
 import { ScrollArea } from './ui/scroll-area';
 import { Button } from './ui/button';
 import { Send } from 'lucide-react';
@@ -17,12 +17,28 @@ const ChatWindow: FC<ChatWindowProps> = ({ chatId }) => {
   const [isSending, setIsSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
-  const { selectedChatId, setSelectedChatId } = useChatStore();
+  const { selectedChatId, setSelectedChatId, messages, fetchMessages } = useChatStore();
 
   useEffect(() => {
     setSelectedChatId(chatId);
-  }, [chatId, setSelectedChatId]);
+    if (chatId) {
+      fetchMessages(chatId);
+    }
+  }, [chatId, setSelectedChatId, fetchMessages]);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  useEffect(() => {
+    if (bottomRef.current) {
+      bottomRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages]);
 
   const handleSendMessage = useCallback(async () => {
     if (!message.trim() || isSending) return;
@@ -44,12 +60,16 @@ const ChatWindow: FC<ChatWindowProps> = ({ chatId }) => {
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
       }
+      // Fetch updated messages after sending
+      if (selectedChatId) {
+        await fetchMessages(selectedChatId);
+      }
     } catch (error) {
       console.error('Error sending message:', error);
     } finally {
       setIsSending(false);
     }
-  }, [message, isSending, selectedChatId]);
+  }, [message, isSending, selectedChatId, fetchMessages]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -67,7 +87,12 @@ const ChatWindow: FC<ChatWindowProps> = ({ chatId }) => {
   return (
     <div className="flex flex-col h-full">
       <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-        {/* Messages will be rendered here */}
+        {messages.map((msg) => (
+          <div key={msg._id} className={msg.role === 'user' ? 'text-right' : 'text-left'}>
+            <div className="inline-block px-3 py-2 rounded bg-muted mb-2">{msg.content}</div>
+          </div>
+        ))}
+        <div ref={bottomRef} />
       </ScrollArea>
       
       <div className="p-4 border-t">

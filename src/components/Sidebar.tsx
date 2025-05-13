@@ -105,8 +105,11 @@ const Sidebar: FC<SidebarProps> = memo(({ user }) => {
   }, []);
 
   const handleNewChat = useCallback(async () => {
-    await createNewChat(selectedAgentId || undefined);
-  }, [selectedAgentId, createNewChat]);
+    const newChat = await createNewChat(selectedAgentId || undefined);
+    if (newChat?._id) {
+      router.push(`/chat/${newChat._id}`);
+    }
+  }, [selectedAgentId, createNewChat, router]);
 
   const handleCreateAgent = useCallback(async (agentInput: CreateAgentInput) => {
     setIsCreatingAgent(true);
@@ -160,12 +163,15 @@ const Sidebar: FC<SidebarProps> = memo(({ user }) => {
   const handleNewChatForAgent = useCallback(async (agentId: string) => {
     setCreatingChatAgentId(agentId);
     try {
-      await createNewChat(agentId);
+      const newChat = await createNewChat(agentId);
       setExpandedAgentId(agentId);
+      if (newChat?._id) {
+        router.push(`/chat/${newChat._id}`);
+      }
     } finally {
       setCreatingChatAgentId(null);
     }
-  }, [createNewChat]);
+  }, [createNewChat, router]);
 
   const toggleSidebar = () => {
     setIsCollapsed(!isCollapsed);

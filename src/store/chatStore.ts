@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { Agent, CreateAgentInput } from '@/types/agent';
+import type { Message } from '@/types/chat';
 
 export interface ChatItem {
   _id: string;
@@ -17,6 +18,7 @@ interface ChatState {
   agents: Agent[];
   isLoading: boolean;
   loadingAgentChats: boolean;
+  messages: Message[];
 
   // Actions
   setChats: (chats: ChatItem[]) => void;
@@ -26,9 +28,11 @@ interface ChatState {
   setAgents: (agents: Agent[]) => void;
   setIsLoading: (isLoading: boolean) => void;
   setLoadingAgentChats: (loading: boolean) => void;
+  setMessages: (messages: Message[]) => void;
+  fetchMessages: (chatId: string) => Promise<void>;
 
   // Complex Actions
-  createNewChat: (agentId?: string) => Promise<void>;
+  createNewChat: (agentId?: string) => Promise<ChatItem | null>;
   createAgent: (agentInput: CreateAgentInput) => Promise<void>;
   updateAgent: (agentId: string, agentInput: CreateAgentInput) => Promise<void>;
   deleteAgent: (agentId: string) => Promise<void>;
@@ -46,6 +50,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   agents: [],
   isLoading: true,
   loadingAgentChats: false,
+  messages: [],
 
   // Basic Actions
   setChats: (chats) => set({ chats }),
@@ -58,6 +63,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setAgents: (agents) => set({ agents }),
   setIsLoading: (isLoading) => set({ isLoading }),
   setLoadingAgentChats: (loading) => set({ loadingAgentChats: loading }),
+  setMessages: (messages) => set({ messages }),
 
   // Complex Actions
   createNewChat: async (agentId) => {
@@ -98,9 +104,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
 
         set({ selectedChatId: chatId });
+        return newChat;
       }
+      return null;
     } catch (error) {
       console.error('Error creating new chat:', error);
+      return null;
     }
   },
 
@@ -253,6 +262,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
       console.error(`Error fetching chats for agent ${agentId}:`, error);
     } finally {
       set({ loadingAgentChats: false });
+    }
+  },
+
+  fetchMessages: async (chatId) => {
+    try {
+      const response = await fetch(`/api/chats/${chatId}`);
+      if (response.ok) {
+        const data = await response.json();
+        set({ messages: data.messages });
+      }
+    } catch (error) {
+      console.error('Error fetching messages:', error);
     }
   }
 })); 
