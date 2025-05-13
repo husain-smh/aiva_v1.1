@@ -1,102 +1,95 @@
 'use client';
 
-import { FC, useEffect, useRef, useState } from 'react';
-import Message from './Message';
-import ChatInput from './ChatInput';
-import { GlassCard } from './ui/GlassCard';
-import { NeonButton } from './ui/NeonButton';
-import { Copy } from 'lucide-react';
-
-export interface MessageType {
-  _id: string;
-  role: 'user' | 'assistant';
-  agentId?: string;
-  content: string;
-  createdAt: string;
-}
+import { FC, useState, useCallback, useEffect, useRef } from 'react';
+import { useChatStore } from '@/store/chatStore';
+import { MessageType } from '@/types/chat';
+import { ScrollArea } from './ui/scroll-area';
+import { Button } from './ui/button';
+import { Send } from 'lucide-react';
+import { Textarea } from './ui/textarea';
 
 interface ChatWindowProps {
-  messages: MessageType[];
-  isLoading: boolean;
-  onSendMessage: (message: string) => void;
+  chatId: string;
 }
 
-const ChatWindow: FC<ChatWindowProps> = ({
-  messages,
-  isLoading,
-  onSendMessage,
-}) => {
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+const ChatWindow: FC<ChatWindowProps> = ({ chatId }) => {
+  const [message, setMessage] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Scroll to bottom when messages change
+  const { selectedChatId, setSelectedChatId } = useChatStore();
+
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages]);
+    setSelectedChatId(chatId);
+  }, [chatId, setSelectedChatId]);
 
-  const handleCopy = async (content: string) => {
+  const handleSendMessage = useCallback(async () => {
+    if (!message.trim() || isSending) return;
+
+    setIsSending(true);
     try {
-      await navigator.clipboard.writeText(content);
-    } catch (err) {
-      // handle error
+      const response = await fetch('/api/message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: message,
+          chatId: selectedChatId
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to send message');
+
+      setMessage('');
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+    } finally {
+      setIsSending(false);
     }
-  };
+  }, [message, isSending, selectedChatId]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  }, [handleSendMessage]);
+
+  const handleTextareaChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setMessage(e.target.value);
+    e.target.style.height = 'auto';
+    e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
+  }, []);
 
   return (
-    <GlassCard className="flex flex-col gap-4 h-full">
-      <div className="flex-1 overflow-y-auto space-y-4">
-        {messages.length === 0 ? (
-          <div className="flex items-center justify-center h-full">
-            <p className="text-muted-foreground">Start a conversation with the assistant.</p>
-          </div>
-        ) : (
-          messages.map((msg, idx) => (
-            <div
-              key={idx}
-              className={`flex w-full ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              onMouseEnter={() => setHoveredIdx(idx)}
-              onMouseLeave={() => setHoveredIdx(null)}
-            >
-              <div
-                className={`relative p-3 rounded-lg text-sm break-words whitespace-pre-wrap ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted text-[oklch(0.85_0.01_285)]'} min-w-[40px] max-w-[90%]`}
-                style={{ boxShadow: 'none' }}
-              >
-                {msg.content}
-                {hoveredIdx === idx && (
-                  <button
-                    onClick={() => handleCopy(msg.content)}
-                    className="absolute top-2 right-2 p-1 rounded-md hover:bg-primary/20 transition-opacity"
-                    title="Copy to clipboard"
-                  >
-                    <Copy size={14} className="opacity-70" />
-                  </button>
-                )}
-              </div>
-            </div>
-          ))
-        )}
-        <div ref={messagesEndRef} />
+    <div className="flex flex-col h-full">
+      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+        {/* Messages will be rendered here */}
+      </ScrollArea>
+      
+      <div className="p-4 border-t">
+        <div className="flex gap-2">
+          <Textarea
+            ref={textareaRef}
+            value={message}
+            onChange={handleTextareaChange}
+            onKeyDown={handleKeyDown}
+            placeholder="Type your message..."
+            className="min-h-[60px] max-h-[200px] resize-none"
+          />
+          <Button
+            onClick={handleSendMessage}
+            disabled={!message.trim() || isSending}
+            className="self-end"
+          >
+            <Send size={20} />
+          </Button>
+        </div>
       </div>
-      <form
-        onSubmit={e => {
-          e.preventDefault();
-          const input = e.target.elements.message.value;
-          if (input) onSendMessage(input);
-          e.target.reset();
-        }}
-        className="flex gap-2 items-center"
-      >
-        <input
-          name="message"
-          className="flex-1 bg-input text-foreground rounded-lg px-4 py-2 border border-border focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-          placeholder="Type your message..."
-          autoComplete="off"
-        />
-        <NeonButton type="submit">Send</NeonButton>
-      </form>
-    </GlassCard>
+    </div>
   );
 };
 

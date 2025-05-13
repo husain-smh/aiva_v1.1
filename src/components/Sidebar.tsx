@@ -1,6 +1,6 @@
 'use client';
 
-import { FC, useState, useEffect } from 'react';
+import { FC, useState, useEffect, useCallback, memo } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { PlusCircle, MessageSquare, LogOut, ChevronLeft, ChevronRight, MoreVertical, Pencil, Trash2, User, Settings, Bot } from 'lucide-react';
@@ -24,12 +24,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { CreateAgentForm } from './Chat/CreateAgentForm';
 import { Agent, CreateAgentInput } from '@/types/agent';
-
-interface ChatItem {
-  _id: string;
-  title: string;
-  createdAt: string;
-}
+import { useChatStore } from '@/store/chatStore';
 
 interface SidebarProps {
   user: {
@@ -39,271 +34,141 @@ interface SidebarProps {
   };
 }
 
-const Sidebar: FC<SidebarProps> = ({ user }) => {
+const Sidebar: FC<SidebarProps> = memo(({ user }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [chats, setChats] = useState<ChatItem[]>([]);
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [editingChatId, setEditingChatId] = useState<string | null>(null);
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState('');
   const [updatedAgentName, setUpdatedAgentName] = useState('');
-  const [showAgents, setShowAgents] = useState(false);
-  const pathname = usePathname();
-  const router = useRouter();
-  const [agentToEdit, setAgentToEdit] = useState<Agent | null>(null);
   const [isAgentFormOpen, setIsAgentFormOpen] = useState(false);
   const [agentFormMode, setAgentFormMode] = useState<'create' | 'update' | 'update-context'>('create');
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-  const [agentChats, setAgentChats] = useState<Record<string, ChatItem[]>>({});
-  const [loadingAgentChats, setLoadingAgentChats] = useState(false);
+  const [agentToEdit, setAgentToEdit] = useState<Agent | null>(null);
   const [expandedAgentId, setExpandedAgentId] = useState<string | null>(null);
   const [isCreatingAgent, setIsCreatingAgent] = useState(false);
   const [creatingChatAgentId, setCreatingChatAgentId] = useState<string | null>(null);
 
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // Zustand store selectors
+  const {
+    chats,
+    agentChats,
+    agents,
+    selectedAgentId,
+    selectedChatId,
+    isLoading,
+    loadingAgentChats,
+    setSelectedAgentId,
+    setSelectedChatId,
+    createNewChat,
+    createAgent,
+    updateAgent,
+    deleteAgent,
+    renameChat,
+    deleteChat,
+    fetchAgentChats
+  } = useChatStore();
+
+  // Initial data fetching
   useEffect(() => {
-    const fetchChats = async () => {
+    const fetchInitialData = async () => {
       try {
-        const response = await fetch('/api/chats');
-        if (response.ok) {
-          const data = await response.json();
-          setChats(data);
+        const [chatsRes, agentsRes] = await Promise.all([
+          fetch('/api/chats'),
+          fetch('/api/agent/fetchAgents')
+        ]);
+
+        if (chatsRes.ok) {
+          const chatsData = await chatsRes.json();
+          useChatStore.getState().setChats(chatsData);
         }
-      } catch (error) {
-        console.error('Error fetching chats:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
 
-    fetchChats();
-  }, []);
-
-  useEffect(() => {
-    const fetchAgents = async () => {
-      try {
-        const response = await fetch('/api/agent/fetchAgents');
-        if (response.ok) {
-          const data = await response.json();
+        if (agentsRes.ok) {
+          const data = await agentsRes.json();
           const mappedAgents = data.agents.map((agent: any) => ({
             ...agent,
             id: agent._id || agent.id,
             apps: agent.connectedApps || agent.apps || [],
             createdAt: new Date(agent.createdAt)
           }));
-          setAgents(mappedAgents);
+          useChatStore.getState().setAgents(mappedAgents);
         }
       } catch (error) {
-        console.error('Error fetching agents:', error);
+        console.error('Error fetching initial data:', error);
+      } finally {
+        useChatStore.getState().setIsLoading(false);
       }
     };
-  
-    fetchAgents();
+
+    fetchInitialData();
   }, []);
 
-  useEffect(() => {
-    const fetchAgentChats = async () => {
-      if (!selectedAgentId) return;
-      
-      setLoadingAgentChats(true);
-      try {
-        const response = await fetch(`/api/chats/byAgent/${selectedAgentId}`);
-        if (response.ok) {
-          const data = await response.json();
-          setAgentChats(prev => ({
-            ...prev,
-            [selectedAgentId]: data
-          }));
-        }
-      } catch (error) {
-        console.error(`Error fetching chats for agent ${selectedAgentId}:`, error);
-      } finally {
-        setLoadingAgentChats(false);
-      }
-    };
-    
-    if (selectedAgentId) {
-      fetchAgentChats();
-    }
-  }, [selectedAgentId]);
+  const handleNewChat = useCallback(async () => {
+    await createNewChat(selectedAgentId || undefined);
+  }, [selectedAgentId, createNewChat]);
 
-  const toggleSidebar = () => {
-    setIsCollapsed(!isCollapsed);
-  };
-
-  const handleRename = async (chatId: string) => {
-    try {
-      const response = await fetch(`/api/chats/${chatId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ title: newTitle }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to rename chat');
-      }
-
-      setChats(chats.map(chat => 
-        chat._id === chatId ? { ...chat, title: newTitle } : chat
-      ));
-      setEditingChatId(null);
-      setNewTitle('');
-    } catch (error) {
-      console.error('Error renaming chat:', error);
-    }
-  };
-
-  const handleDelete = async (chatId: string) => {
-    if (!confirm('Are you sure you want to delete this chat?')) return;
-
-    try {
-      const response = await fetch(`/api/chats/${chatId}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete chat');
-      }
-
-      setChats(chats.filter(chat => chat._id !== chatId));
-      
-      if (pathname === `/chat/${chatId}`) {
-        router.push('/chat');
-      }
-    } catch (error) {
-      console.error('Error deleting chat:', error);
-    }
-  };
-
-  const handleNewChat = async () => {
-    if (selectedAgentId) {
-      try {
-        const response = await fetch('/api/message', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            content: 'New chat',
-            agentId: selectedAgentId 
-          }),
-        });
-        
-        if (!response.ok) throw new Error('Failed to create new chat');
-        
-        const data = await response.json();
-        const chatId = data.chatId || data._id;
-        
-        if (chatId) {
-          const newChat = {
-            _id: chatId,
-            title: 'New Chat',
-            createdAt: new Date().toISOString()
-          };
-          
-          setAgentChats(prev => ({
-            ...prev,
-            [selectedAgentId]: [newChat, ...(prev[selectedAgentId] || [])]
-          }));
-          
-          router.push(`/chat/${chatId}`);
-        }
-      } catch (error) {
-        console.error('Error creating new chat:', error);
-      }
-    } else {
-      try {
-        const response = await fetch('/api/message', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: 'New chat' }),
-        });
-        if (!response.ok) throw new Error('Failed to create new chat');
-        const data = await response.json();
-        if (data.chatId) {
-          router.push(`/chat/${data.chatId}`);
-        } else if (data._id) {
-          router.push(`/chat/${data._id}`);
-        }
-      } catch (error) {
-        console.error('Error creating new chat:', error);
-      }
-    }
-  };
-
-  const handleCreateAgent = async (agentInput: CreateAgentInput) => {
+  const handleCreateAgent = useCallback(async (agentInput: CreateAgentInput) => {
     setIsCreatingAgent(true);
     try {
-      const response = await fetch('/api/agent/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: agentInput.name,
-          description: agentInput.description,
-          context: agentInput.context,
-          instructions: agentInput.instructions,
-          connectedApps: agentInput.apps,
-        }),
-      });
-  
-      if (!response.ok) {
-        throw new Error('Failed to create agent');
-      }
-  
-      const data = await response.json();
-      const newAgent: Agent = {
-        ...data.agent,
-        id: data.agent._id,
-        apps: data.agent.connectedApps,
-        createdAt: new Date(data.agent.createdAt),
-      };
-      
-      setAgents(prev => [...prev, newAgent]);
+      await createAgent(agentInput);
       setIsAgentFormOpen(false);
-    } catch (error) {
-      console.error('Error creating agent:', error);
     } finally {
       setIsCreatingAgent(false);
     }
-  };
+  }, [createAgent]);
 
-  const handleUpdateAgent = async (agentInput: CreateAgentInput) => {
-    try {
-      if (!agentToEdit) return;
+  const handleUpdateAgent = useCallback(async (agentInput: CreateAgentInput) => {
+    if (!agentToEdit) return;
+    await updateAgent(agentToEdit.id, agentInput);
+    setAgentToEdit(null);
+    setIsAgentFormOpen(false);
+    setAgentFormMode('create');
+  }, [agentToEdit, updateAgent]);
 
-      const updatedAgent: Agent = {
-        ...agentToEdit,
-        name: agentInput.name,
-        description: agentInput.description,
-        context: agentInput.context,
-        instructions: agentInput.instructions,
-        apps: agentInput.apps,
-      };
-      
-      const response = await fetch(`/api/agent/updateAgent`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updatedAgent),
-      });
+  const handleDeleteAgent = useCallback(async (agentId: string) => {
+    if (!confirm('Are you sure you want to delete this agent?')) return;
+    await deleteAgent(agentId);
+  }, [deleteAgent]);
 
-      if (!response.ok) {
-        throw new Error('Failed to update agent');
-      }
+  const handleRename = useCallback(async (chatId: string) => {
+    if (!newTitle.trim()) return;
+    await renameChat(chatId, newTitle);
+    setEditingChatId(null);
+    setNewTitle('');
+  }, [newTitle, renameChat]);
 
-      setAgents(agents.map(agent => 
-        agent.id === agentToEdit.id ? updatedAgent : agent
-      ));
-      
-      setAgentToEdit(null);
-      setIsAgentFormOpen(false);
-      setAgentFormMode('create');
-    } catch (error) {
-      console.error('Error updating agent:', error);
+  const handleDelete = useCallback(async (chatId: string) => {
+    if (!confirm('Are you sure you want to delete this chat?')) return;
+    await deleteChat(chatId);
+    if (pathname === `/chat/${chatId}`) {
+      router.push('/chat');
     }
+  }, [pathname, router, deleteChat]);
+
+  const handleExpandAgent = useCallback(async (agentId: string) => {
+    if (expandedAgentId !== agentId) {
+      if (!agentChats[agentId]) {
+        await fetchAgentChats(agentId);
+      }
+      setExpandedAgentId(agentId);
+    } else {
+      setExpandedAgentId(null);
+    }
+  }, [expandedAgentId, agentChats, fetchAgentChats]);
+
+  const handleNewChatForAgent = useCallback(async (agentId: string) => {
+    setCreatingChatAgentId(agentId);
+    try {
+      await createNewChat(agentId);
+      setExpandedAgentId(agentId);
+    } finally {
+      setCreatingChatAgentId(null);
+    }
+  }, [createNewChat]);
+
+  const toggleSidebar = () => {
+    setIsCollapsed(!isCollapsed);
   };
 
   const handleInlineUpdate = async (agentId: string) => {
@@ -316,48 +181,12 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
         name: updatedAgentName
       };
       
-      const response = await fetch(`/api/agent/updateAgent`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updatedAgent),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update agent');
-      }
-
-      setAgents(agents.map(agent => 
-        agent.id === agentId ? updatedAgent : agent
-      ));
+      await updateAgent(agentId, updatedAgent);
       
       setEditingAgentId(null);
       setUpdatedAgentName('');
     } catch (error) {
       console.error('Error updating agent:', error);
-    }
-  };
-
-  const handleDeleteAgent = async (agentId: string) => {
-    if (!confirm('Are you sure you want to delete this agent?')) return;
-
-    try {
-      const response = await fetch(`/api/agent/deleteAgent`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ id: agentId }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete agent');
-      }
-
-      setAgents(agents.filter(agent => agent.id !== agentId));
-    } catch (error) {
-      console.error('Error deleting agent:', error);
     }
   };
 
@@ -386,58 +215,13 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
         context: agentInput.context
       };
       
-      const response = await fetch(`/api/agent/updateAgent`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updatedAgent),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update agent context');
-      }
-
-      setAgents(agents.map(agent => 
-        agent.id === agentToEdit.id ? updatedAgent : agent
-      ));
+      await updateAgent(agentToEdit.id, updatedAgent);
       
       setAgentToEdit(null);
       setIsAgentFormOpen(false);
       setAgentFormMode('create');
     } catch (error) {
       console.error('Error updating agent context:', error);
-    }
-  };
-
-  const handleNewChatForAgent = async (agentId: string) => {
-    try {
-      const response = await fetch('/api/message', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          content: 'New chat',
-          agentId
-        }),
-      });
-      if (!response.ok) throw new Error('Failed to create new chat');
-      const data = await response.json();
-      const chatId = data.chatId || data._id;
-      if (chatId) {
-        // Fetch the latest chats for this agent
-        const chatsRes = await fetch(`/api/chats/byAgent/${agentId}`);
-        if (chatsRes.ok) {
-          const chatsData = await chatsRes.json();
-          setAgentChats(prev => ({
-            ...prev,
-            [agentId]: chatsData
-          }));
-        }
-        setExpandedAgentId(agentId);
-        router.push(`/chat/${chatId}`);
-      }
-    } catch (error) {
-      console.error('Error creating new chat:', error);
     }
   };
 
@@ -517,17 +301,7 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
                     style={{ marginBottom: expandedAgentId === agent.id ? '0.25rem' : '0.5rem' }}
                     onClick={() => {
                       if (expandedAgentId !== agent.id) {
-                        if (!agentChats[agent.id]) {
-                          setLoadingAgentChats(true);
-                          fetch(`/api/chats/byAgent/${agent.id}`)
-                            .then(res => res.ok ? res.json() : [])
-                            .then(data => {
-                              setAgentChats(prev => ({ ...prev, [agent.id]: data }));
-                            })
-                            .catch(err => console.error(err))
-                            .finally(() => setLoadingAgentChats(false));
-                        }
-                        setExpandedAgentId(agent.id);
+                        handleExpandAgent(agent.id);
                       } else {
                         setExpandedAgentId(null);
                       }
@@ -851,6 +625,6 @@ const Sidebar: FC<SidebarProps> = ({ user }) => {
       </div>
     </div>
   );
-};
+});
 
 export default Sidebar;
