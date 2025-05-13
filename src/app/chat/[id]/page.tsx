@@ -46,20 +46,13 @@ export default function ChatById() {
   return (
     <div className="flex h-full">
       <Sidebar user={session.user} />
-      
-      <div className="flex flex-col flex-1 h-full">
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold truncate max-w-md">
-              Chat
-            </h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <UpdateUserPreferencesButton />
-            <ConnectToolsButton />
-          </div>
+      <div className="flex flex-col flex-1 h-full relative">
+        {/* Floating buttons */}
+        <div className="fixed top-4 right-8 z-50 flex gap-2">
+          <UpdateUserPreferencesButton />
+          <ConnectToolsButton />
         </div>
-        
+        {/* Chat window */}
         <div className="flex-1 overflow-hidden">
           <ChatWindow chatId={chatId} />
         </div>

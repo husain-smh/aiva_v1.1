@@ -223,7 +223,7 @@ if (data.redirectUrl) {
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button variant="outline">Connect Tools</Button>
+        <Button variant="outline" className="bg-black text-white opacity-100 hover:bg-neutral-900">Connect Tools</Button>
       </SheetTrigger>
       <SheetContent>
         <SheetHeader>

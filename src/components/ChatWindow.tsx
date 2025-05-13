@@ -103,7 +103,7 @@ const ChatWindow: FC<ChatWindowProps> = ({ chatId }) => {
             onChange={handleTextareaChange}
             onKeyDown={handleKeyDown}
             placeholder="Type your message..."
-            className="min-h-[60px] max-h-[200px] resize-none"
+            className="min-h-[36px] max-h-[200px] resize-none"
           />
           <Button
             onClick={handleSendMessage}
