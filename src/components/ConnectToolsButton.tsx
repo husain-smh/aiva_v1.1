@@ -11,6 +11,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { OpenAIToolSet } from 'composio-core';
 
 interface Service {
@@ -225,11 +226,11 @@ if (data.redirectUrl) {
       <SheetTrigger asChild>
         <Button variant="outline" className="bg-black text-white opacity-100 hover:bg-neutral-900">Connect Tools</Button>
       </SheetTrigger>
-      <SheetContent>
+      <SheetContent className="flex flex-col h-full">
         <SheetHeader>
           <SheetTitle>Available Services</SheetTitle>
         </SheetHeader>
-        <div className="py-4">
+        <ScrollArea className="flex-1 w-full">
           {services.map((service) => (
             <div
               key={service.id}
@@ -242,7 +243,7 @@ if (data.redirectUrl) {
               />
             </div>
           ))}
-        </div>
+        </ScrollArea>
       </SheetContent>
     </Sheet>
   );

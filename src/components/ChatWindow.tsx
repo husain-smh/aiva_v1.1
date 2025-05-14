@@ -8,6 +8,7 @@ import { Button } from './ui/button';
 import { Send } from 'lucide-react';
 import { Textarea } from './ui/textarea';
 import { v4 as uuidv4 } from 'uuid';
+import MessageBubble from './Message';
 
 interface ChatWindowProps {
   chatId: string;
@@ -104,9 +105,7 @@ const ChatWindow: FC<ChatWindowProps> = ({ chatId }) => {
     <div className="flex flex-col h-full">
       <ScrollArea className="flex-1 p-4" ref={scrollRef}>
         {[...messages, ...pendingMessages].map((msg, idx) => (
-          <div key={msg._id + idx} className={msg.role === 'user' ? 'text-right' : 'text-left'}>
-            <div className="inline-block px-3 py-2 rounded bg-muted mb-2">{msg.content}</div>
-          </div>
+          <MessageBubble key={msg._id + idx} role={msg.role} content={msg.content} />
         ))}
         {showLoading && (
           <div className="text-left">

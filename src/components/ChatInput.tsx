@@ -3,6 +3,7 @@
 import { FC, FormEvent, useState } from 'react';
 import { Send } from 'lucide-react';
 import { Button } from './ui/button';
+import { Input } from './ui/input';
 
 interface ChatInputProps {
   onSubmit: (message: string) => void;
@@ -26,12 +27,12 @@ const ChatInput: FC<ChatInputProps> = ({ onSubmit, isLoading }) => {
       onSubmit={handleSubmit}
       className="flex items-center border-t border-border p-4"
     >
-      <input
+      <Input
         type="text"
         value={message}
         onChange={(e) => setMessage(e.target.value)}
         placeholder="Type your message..."
-        className="flex-1 border border-input rounded-l-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-ring bg-background text-foreground"
+        className="flex-1 rounded-l-lg"
         disabled={isLoading}
       />
       <Button

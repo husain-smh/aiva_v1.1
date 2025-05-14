@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { PlusCircle, MessageSquare, LogOut, ChevronLeft, ChevronRight, MoreVertical, Pencil, Trash2, User, Settings, Bot } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import { Button } from './ui/button';
+import { Input } from './ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -314,7 +315,7 @@ const Sidebar: FC<SidebarProps> = memo(({ user }) => {
                     }}
                   >
                     {editingAgentId === agent.id ? (
-                      <input
+                      <Input
                         type="text"
                         value={updatedAgentName}
                         onChange={(e) => setUpdatedAgentName(e.target.value)}
@@ -423,7 +424,7 @@ const Sidebar: FC<SidebarProps> = memo(({ user }) => {
                                 className="flex items-center gap-2 flex-1"
                               >
                                 {editingChatId === chat._id ? (
-                                  <input
+                                  <Input
                                     type="text"
                                     value={newTitle}
                                     onChange={(e) => setNewTitle(e.target.value)}
@@ -529,7 +530,7 @@ const Sidebar: FC<SidebarProps> = memo(({ user }) => {
                     >
                       {!isCollapsed && (
                         editingChatId === chat._id ? (
-                          <input
+                          <Input
                             type="text"
                             value={newTitle}
                             onChange={(e) => setNewTitle(e.target.value)}
