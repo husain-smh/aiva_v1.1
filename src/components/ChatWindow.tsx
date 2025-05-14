@@ -9,9 +9,16 @@ import { Send } from 'lucide-react';
 import { Textarea } from './ui/textarea';
 import { v4 as uuidv4 } from 'uuid';
 import MessageBubble from './Message';
+import TaskPanel from './TaskPanel';
 
 interface ChatWindowProps {
   chatId: string;
+}
+
+interface Task {
+  tool: string;
+  input: any;
+  output: any;
 }
 
 const ChatWindow: FC<ChatWindowProps> = ({ chatId }) => {
@@ -19,6 +26,7 @@ const ChatWindow: FC<ChatWindowProps> = ({ chatId }) => {
   const [isSending, setIsSending] = useState(false);
   const [pendingMessages, setPendingMessages] = useState<Message[]>([]);
   const [showLoading, setShowLoading] = useState(false);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -75,9 +83,9 @@ const ChatWindow: FC<ChatWindowProps> = ({ chatId }) => {
 
       const data = await response.json();
       
-      // Log tasks to console
+      // Update tasks if they exist in the response
       if (data.tasks && data.tasks.length > 0) {
-        console.log('Tasks executed:', data.tasks);
+        setTasks(data.tasks);
       }
 
       // Fetch updated messages after sending
@@ -147,6 +155,8 @@ const ChatWindow: FC<ChatWindowProps> = ({ chatId }) => {
           </Button>
         </div>
       </div>
+
+      <TaskPanel tasks={tasks} />
     </div>
   );
 };
