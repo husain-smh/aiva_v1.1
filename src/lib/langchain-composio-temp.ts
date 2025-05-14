@@ -193,6 +193,10 @@ ${previousMessagesContext}
       console.log("Tool execution Summary:", JSON.stringify(toolExecutionData, null, 2));
 
       // console.log("Agent response:", response);
+      response = {
+        ...response,
+        toolExecutionData
+      };
     } catch (error) {
       console.error("Error during agent execution:", error);
       // Fall back to direct LLM call when agent execution fails
@@ -201,7 +205,10 @@ ${previousMessagesContext}
         ["system", systemMessage],
         ["human", input]
       ]);
-      response = { output: result.content };
+      response = { 
+        output: result.content,
+        toolExecutionData: []
+      };
     }
   } else {
     // When no tools are available, use direct LLM call without function calling
@@ -224,13 +231,17 @@ ${previousMessagesContext}
         bufferMemory.chatHistory.addMessage(new AIMessage(result.content.toString()));
       }
       
-      response = { output: result.content };
+      response = { 
+        output: result.content,
+        toolExecutionData: []
+      };
       console.log("Direct LLM response:", response);
     } catch (error) {
       console.error("Error during direct LLM call:", error);
       // Return a fallback response for direct call errors
       response = {
-        output: "I encountered an error while processing your request. Please try again or rephrase your question."
+        output: "I encountered an error while processing your request. Please try again or rephrase your question.",
+        toolExecutionData: []
       };
     }
   }

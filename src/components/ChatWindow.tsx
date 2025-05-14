@@ -73,6 +73,13 @@ const ChatWindow: FC<ChatWindowProps> = ({ chatId }) => {
 
       if (!response.ok) throw new Error('Failed to send message');
 
+      const data = await response.json();
+      
+      // Log tasks to console
+      if (data.tasks && data.tasks.length > 0) {
+        console.log('Tasks executed:', data.tasks);
+      }
+
       // Fetch updated messages after sending
       if (selectedChatId) {
         await fetchMessages(selectedChatId);

@@ -261,6 +261,7 @@ export async function POST(request: NextRequest) {
       });
       
       assistantMessageText = langchainResponse.output;
+      const toolExecutionData = langchainResponse.toolExecutionData || [];
 
       // Save assistant message to short-term memory
       const dbAssistantMessage = await shortTermMemory.addMessage('assistant', assistantMessageText);
@@ -269,6 +270,7 @@ export async function POST(request: NextRequest) {
         userMessage,
         assistantMessage: dbAssistantMessage,
         chatId: currentChatId,
+        tasks: toolExecutionData
       });
     } catch (aiError) {
       console.error('AI processing error:', aiError);
