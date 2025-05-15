@@ -224,7 +224,7 @@ if (data.redirectUrl) {
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button variant="outline" className="bg-black text-white opacity-100 hover:bg-neutral-900">Connect Tools</Button>
+        <Button className="bg-black text-white hover:bg-neutral-900">Connect Tools</Button>
       </SheetTrigger>
       <SheetContent className="flex flex-col h-full">
         <SheetHeader>

@@ -63,8 +63,7 @@ export default function UpdateUserPreferencesButton() {
 
   return (
     <Button 
-      variant="outline" 
-      className="bg-black text-white opacity-100 hover:bg-neutral-900"
+      className="bg-black text-white hover:bg-neutral-900"
       onClick={handleUpdatePreferences}
       disabled={isLoading}
     >
