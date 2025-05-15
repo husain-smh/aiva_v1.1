@@ -50,7 +50,7 @@ export default function Message({ role, content }) {
           )}
         </div>
       ) : (
-        <div className="rounded-lg p-3 text-sm bg-card text-card-foreground break-words whitespace-pre-wrap max-w-[70%] min-w-[40px]">
+        <div className="rounded-lg p-3 text-sm text-card-foreground break-words whitespace-pre-wrap max-w-[70%] min-w-[40px]">
           {content}
         </div>
       )}

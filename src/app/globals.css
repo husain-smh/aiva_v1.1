@@ -189,7 +189,6 @@
 }
 
 .message-ai {
-  background-color: var(--card);
   color: var(--card-foreground);
   margin-right: auto;
 }
