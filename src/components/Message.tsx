@@ -33,7 +33,7 @@ export default function Message({ role, content }) {
       style={{ position: 'relative' }}
     >
       {isUser ? (
-        <div className="relative rounded-lg p-3 text-sm bg-muted text-foreground break-words whitespace-pre-wrap max-w-[70%] min-w-[40px]">
+        <div className="user-message text-foreground break-words whitespace-pre-wrap max-w-[70%] min-w-[40px]">
           {content}
           {showCopy && (
             <Button

@@ -268,3 +268,12 @@ code {
 /* Hide all scrollbars globally */
 *::-webkit-scrollbar { display: none !important; }
 * { scrollbar-width: none !important; }
+
+.user-message {
+  background: rgba(255,255,255,0.05);
+  border-left: 4px solid #4f46e5;
+  border-radius: 8px;
+  box-shadow: 0px 2px 4px rgba(0,0,0,0.1);
+  padding: 12px 16px;
+  margin: 8px 0;
+}
