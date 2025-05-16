@@ -200,7 +200,7 @@ export async function POST(request: NextRequest) {
       const conversationContext = await shortTermMemory.getContextString();
       
       // 2. Find semantic tools needed based on the prompt with conversation context
-      console.log('Finding semantic tools for prompt with context...');
+      console.log('Finding semantic tools for prompt with context...', conversationContext);
       const semanticToolsResponse = await findappsfromprompt(content, supportedApps, conversationContext);
       let parsedSemanticTools: string[] = [];
       

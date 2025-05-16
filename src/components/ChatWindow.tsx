@@ -27,6 +27,7 @@ const ChatWindow: FC<ChatWindowProps> = ({ chatId }) => {
   const [pendingMessages, setPendingMessages] = useState<Message[]>([]);
   const [showLoading, setShowLoading] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [firstView, setFirstView] = useState(true); // Track if this is the first time viewing the chat
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -37,6 +38,7 @@ const ChatWindow: FC<ChatWindowProps> = ({ chatId }) => {
     setSelectedChatId(chatId);
     if (chatId) {
       fetchMessages(chatId);
+      setFirstView(true); // Reset first view when chat changes
     }
   }, [chatId, setSelectedChatId, fetchMessages]);
 
@@ -55,6 +57,9 @@ const ChatWindow: FC<ChatWindowProps> = ({ chatId }) => {
   const handleSendMessage = useCallback(async () => {
     if (!message.trim() || isSending) return;
 
+    // No longer the first view once user sends a message
+    setFirstView(false);
+    
     setIsSending(true);
     const userMsg: Message = {
       _id: uuidv4(),
@@ -116,12 +121,25 @@ const ChatWindow: FC<ChatWindowProps> = ({ chatId }) => {
     e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
   }, []);
 
+  // Filter out "New chat" messages
+  const filteredMessages = messages.filter(msg => msg.content !== 'New chat');
+
   return (
     <div className="flex flex-col h-full">
       <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-        {[...messages, ...pendingMessages].map((msg, idx) => (
+        {/* Display filtered messages and pending messages */}
+        {[...filteredMessages, ...pendingMessages].map((msg, idx) => (
           <MessageBubble key={msg._id + idx} role={msg.role} content={msg.content} />
         ))}
+        
+        {/* Display welcome message if it's the first view and no messages (except "New chat") */}
+        {firstView && filteredMessages.length === 0 && !showLoading && (
+          <MessageBubble 
+            role="assistant" 
+            content="How can I help you today?" 
+          />
+        )}
+        
         {showLoading && (
           <div className="text-left">
             <div className="inline-block px-3 py-2 rounded bg-muted mb-2 w-1/2 min-w-[120px] max-w-[320px]">
