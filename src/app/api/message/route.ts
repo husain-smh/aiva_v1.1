@@ -57,9 +57,15 @@ async function generateChatTitle(message: string): Promise<string> {
  * Analyze prompt to detect which apps might be needed
  * @param message User's message
  * @param supportedApps List of supported app names
+ * @param conversationContext Optional previous conversation context
  * @returns Array of app names that might be relevant
  */
-async function findappsfromprompt(message: string, supportedApps: string[]): Promise<string> {
+async function findappsfromprompt(message: string, supportedApps: string[], conversationContext?: string): Promise<string> {
+  // Include conversation context in the prompt if available
+  const contextPrompt = conversationContext ? 
+    `Previous conversation context:\n${conversationContext}\n\nBased on the ENTIRE conversation context and the user's latest message:` : 
+    '';
+
   try {
     const response = await openai.chat.completions.create({
       model: 'gpt-3.5-turbo',
@@ -68,6 +74,7 @@ async function findappsfromprompt(message: string, supportedApps: string[]): Pro
           role: 'system',
           content: `You are a tool analyzer that determines which tools a user might need based on their request.
 Available tools are: ${supportedApps.join(', ')}.
+${contextPrompt}
 
 Return ONLY a valid JSON array of strings containing the tool names needed. 
 Example responses:
@@ -189,9 +196,12 @@ export async function POST(request: NextRequest) {
       const supportedApps = ["github", "gmail", "whatsapp", "googlecalendar", "googledrive", "googledocs","yousearch","linkedin","slack","jira","googlesheets"];
       let assistantMessageText = '';
       
-      // 2. Find semantic tools needed based on the prompt
-      console.log('Finding semantic tools for prompt...');
-      const semanticToolsResponse = await findappsfromprompt(content, supportedApps);
+      // Get conversation context as a string
+      const conversationContext = await shortTermMemory.getContextString();
+      
+      // 2. Find semantic tools needed based on the prompt with conversation context
+      console.log('Finding semantic tools for prompt with context...');
+      const semanticToolsResponse = await findappsfromprompt(content, supportedApps, conversationContext);
       let parsedSemanticTools: string[] = [];
       
       // Try to parse the response to get semantic tools
@@ -237,9 +247,6 @@ export async function POST(request: NextRequest) {
       );
       
       console.log('Final semantic tools to be used:', parsedSemanticTools);
-      
-      // Get conversation context as a string
-      const conversationContext = await shortTermMemory.getContextString();
       
       // Create agent config from agentData if available
       const agentConfig = agentData ? {
