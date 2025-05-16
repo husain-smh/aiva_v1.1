@@ -8,9 +8,15 @@ import { ChainValues } from "@langchain/core/utils/types";
 export class ToolTrackingCallbackHandler extends BaseCallbackHandler {
   name = "ToolTrackingCallbackHandler";
   toolCalls: { tool: string; input: any; output?: any }[] = [];
+
+  private socketServer: any;
+  
   
   constructor() {
     super();
+  }
+  setSocketServer(server: any) {
+    this.socketServer = server;
   }
 
   /**

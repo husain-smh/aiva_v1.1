@@ -28,6 +28,8 @@ export async function executingTheTools(
 ) {
   //Create our custom callback handler
   const toolTracker = new ToolTrackingCallbackHandler();
+  toolTracker.setSocketServer(yourWebSocketServerInstance);
+  
   const callbacks = options?.callbacks || [];
   callbacks.push(toolTracker);
 //create a new options object with the callbacks
