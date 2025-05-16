@@ -295,14 +295,19 @@ code {
 .markdown-h3,
 .markdown-h4,
 .markdown-h5,
-.markdown-h6 {
-  margin-top: 1.5em;
-  margin-bottom: 0.5em;
-  font-weight: 600;
+.markdown-h6,
+.markdown-p,
+.markdown-ul,
+.markdown-ol,
+.markdown-blockquote,
+.markdown-pre,
+.markdown-table {
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 .markdown-p {
-  margin-bottom: 1em;
+  margin-bottom: 0.1em;
 }
 
 .markdown-code {
@@ -327,8 +332,14 @@ code {
 
 .markdown-ul,
 .markdown-ol {
-  margin: 1em 0;
-  padding-left: 2em;
+  margin: 0.1em 0;
+  padding-left: 1.2em;
+}
+
+.markdown-blockquote,
+.markdown-pre,
+.markdown-table {
+  margin: 0;
 }
 
 .markdown-blockquote {
