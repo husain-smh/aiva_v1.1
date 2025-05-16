@@ -1,6 +1,6 @@
 import mongoose, { Schema, models } from 'mongoose';
 
-interface IUserPreference {
+export interface IUserPreference {
   _id: string;
   userId: string;
   preferences: Record<string, string>;
@@ -23,6 +23,6 @@ const userPreferenceSchema = new Schema<IUserPreference>({
     type: Date,
     default: Date.now,
   },
-});
+},{timestamps: true }); //for createdAt and updatedAt
 
 export const UserPreference = models.UserPreference || mongoose.model('UserPreference', userPreferenceSchema); 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Sidebar from '@/components/Sidebar';
@@ -14,8 +14,17 @@ export default function ChatById() {
   const router = useRouter();
   const params = useParams();
   const chatId = Array.isArray(params.id) ? params.id[0] : params.id as string;
-  
+
   const { selectedChatId, setSelectedChatId } = useChatStore();
+
+  const [connectedTools, setConnectedTools] = useState<Record<string, boolean>>({});
+
+  // Handler for tools connection status
+  const handleToolsConnected = (tools: Record<string, boolean>) => {
+    setConnectedTools(tools);
+    // Optional: log or act based on connected tools
+    console.log('Connected tools:', tools);
+  };
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -50,8 +59,9 @@ export default function ChatById() {
         {/* Floating buttons */}
         <div className="fixed top-4 right-8 z-50 flex gap-2">
           <UpdateUserPreferencesButton />
-          <ConnectToolsButton />
+          <ConnectToolsButton onToolsConnected={handleToolsConnected} />
         </div>
+
         {/* Chat window */}
         <div className="flex-1 overflow-hidden">
           <ChatWindow chatId={chatId} />
@@ -59,4 +69,4 @@ export default function ChatById() {
       </div>
     </div>
   );
-} 
+}

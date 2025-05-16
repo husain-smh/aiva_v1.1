@@ -1,14 +1,31 @@
 import { Message } from '@/models/Message';
-import { UserPreference } from '@/models/UserPreference';
-import { UserFact } from '@/models/UserFact';
-import { ChatScanRecord } from '@/models/ChatScanRecord';
-import { Chat } from '@/models/Chat';
+import { UserPreference, IUserPreference } from '@/models/UserPreference';
+import { UserFact, IUserFact } from '@/models/UserFact';
+import { ChatScanRecord, IChatScanRecord } from '@/models/ChatScanRecord';
+import { Chat, IChat } from '@/models/Chat';
 import { connectToDatabase } from './mongodb';
 import openai from '@/lib/openai';
+import mongoose, { Schema } from 'mongoose';
 
 // Number of messages to process in a single batch
 const BATCH_SIZE = 20;
 
+// Define interfaces for the returned data
+interface ChatDocument {
+  _id: mongoose.Types.ObjectId | string;
+  userId: string;
+  agentId: Schema.Types.ObjectId;
+  title: string;
+  createdAt: Date;
+}
+interface MessageDocument {
+  _id: mongoose.Types.ObjectId | string;
+  chatId: string;
+  agentId?: string;
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt: Date;
+}
 /**
  * Main entry point to scan a user's chats and extract preferences/facts
  * @param userId The ID of the user whose chats to scan
@@ -22,8 +39,8 @@ export async function scanUserChats(userId: string, forceScan: boolean = false):
 }> {
   await connectToDatabase();
   
-  // Get all chats for this user
-  const chats = await Chat.find({ userId }).lean();
+  // Get all chats for this user - explicitly type the result
+  const chats = await Chat.find({ userId }).lean<ChatDocument[]>();
   
   if (chats.length === 0) {
     return { scannedChats: 0, newPreferences: 0, newFacts: 0 };
@@ -35,6 +52,7 @@ export async function scanUserChats(userId: string, forceScan: boolean = false):
   
   // Process each chat
   for (const chat of chats) {
+    // Now TypeScript knows that chat has _id property
     const chatId = chat._id.toString();
     const { needsScan, scanRecord } = await checkIfChatNeedsScan(chatId, userId, forceScan);
     
@@ -60,9 +78,9 @@ async function checkIfChatNeedsScan(
   chatId: string, 
   userId: string, 
   forceScan: boolean
-): Promise<{ needsScan: boolean; scanRecord: any }> {
+): Promise<{ needsScan: boolean; scanRecord: Partial<IChatScanRecord> }> {
   // Get existing scan record if any
-  let scanRecord = await ChatScanRecord.findOne({ chatId }).lean();
+  let scanRecord = await ChatScanRecord.findOne({ chatId }).lean<IChatScanRecord>();
   
   // If no scan record exists, this chat has never been scanned
   if (!scanRecord) {
@@ -84,7 +102,7 @@ async function checkIfChatNeedsScan(
   // Find the timestamp of the latest message in this chat
   const latestMessage = await Message.findOne({ chatId })
     .sort({ createdAt: -1 })
-    .lean();
+    .lean<MessageDocument>();
   
   if (!latestMessage) {
     return { needsScan: false, scanRecord };
@@ -110,10 +128,10 @@ async function checkIfChatNeedsScan(
 async function scanChat(
   chatId: string, 
   userId: string, 
-  scanRecord: any
+  scanRecord: Partial<IChatScanRecord>
 ): Promise<{ newPreferences: number, newFacts: number }> {
   // Get messages created after the last scan, up to BATCH_SIZE
-  const lastScannedDate = new Date(scanRecord.lastMessageTimestamp);
+  const lastScannedDate = new Date(scanRecord.lastMessageTimestamp ?? 0);
   
   // Find messages to scan, either new ones or all if forcing a rescan
   const messages = await Message.find({ 
@@ -421,7 +439,7 @@ async function saveFacts(
 /**
  * Update scan record after processing a batch of messages
  */
-async function updateScanRecord(scanRecord: any, messages: any[]): Promise<void> {
+async function updateScanRecord(scanRecord: Partial<IChatScanRecord>, messages: any[]): Promise<void> {
   if (messages.length === 0) return;
   
   // Get the timestamp of the latest message processed
@@ -436,8 +454,8 @@ async function updateScanRecord(scanRecord: any, messages: any[]): Promise<void>
         $set: {
           lastScannedAt: new Date(),
           lastMessageTimestamp: latestTimestamp,
-          scannedMessageCount: scanRecord.scannedMessageCount + messages.length,
-          scanVersion: scanRecord.scanVersion + 1
+          scannedMessageCount: (scanRecord.scannedMessageCount ?? 0) + messages.length,
+          scanVersion: (scanRecord.scanVersion ?? 1) + 1
         }
       }
     );
@@ -462,17 +480,36 @@ export async function getUserContext(userId: string): Promise<{
 }> {
   await connectToDatabase();
   
-  // Get user preferences
-  const userPreferences = await UserPreference.findOne({ userId }).lean();
+  // Get user preferences with proper typing
+  const userPreferences = await UserPreference.findOne({ userId }).lean<IUserPreference>();
   
-  // Get user facts
-  const userFacts = await UserFact.findOne({ userId }).lean();
+  // Get user facts with proper typing
+  const userFacts = await UserFact.findOne({ userId }).lean<IUserFact>();
+  
+  // Process preferences - handle Map if needed
+  let preferences: Record<string, string> = {};
+  if (userPreferences?.preferences) {
+    if (userPreferences.preferences instanceof Map) {
+      preferences = Object.fromEntries(userPreferences.preferences);
+    } else {
+      // Handle case where it might already be an object
+      preferences = userPreferences.preferences as Record<string, string>;
+    }
+  }
+  
+  // Process facts - handle Map if needed
+  let facts: Record<string, string> = {};
+  if (userFacts?.facts) {
+    if (userFacts.facts instanceof Map) {
+      facts = Object.fromEntries(userFacts.facts);
+    } else {
+      // Handle case where it might already be an object
+      facts = userFacts.facts as Record<string, string>;
+    }
+  }
   
   // Return the formatted data
-  return {
-    preferences: userPreferences?.preferences || {},
-    facts: userFacts?.facts || {}
-  };
+  return { preferences, facts };
 }
 
 /**
@@ -552,4 +589,4 @@ export function formatUserContextForPrompt(
   }
   
   return contextString || 'No specific user context available.';
-} 
+}

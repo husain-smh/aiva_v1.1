@@ -6,7 +6,6 @@ import { Chat } from '@/models/Chat';
 import openai from '@/lib/openai';
 import { User } from '@/models/User';
 import { loadComposioTools, executeComposioTool, COMPOSIO_ACTIONS, findToolsByUseCase } from '@/lib/composio';
-import { runComposioAgentWithTools } from '@/lib/langchain-composio';
 import { executingTheTools } from '@/lib/langchain-composio-temp';
 import { Agent } from '@/models/Agent';
 import { ShortTermMemory, createShortTermMemory } from '@/lib/shortTermMemory';

@@ -1,7 +1,10 @@
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { ComponentProps } from 'react';
 
-export function NeonButton({ className, ...props }) {
+type NeonButtonProps = ComponentProps<typeof Button>;
+
+export function NeonButton({ className, ...props }: NeonButtonProps) {
   return (
     <Button
       className={cn(
@@ -11,4 +14,4 @@ export function NeonButton({ className, ...props }) {
       {...props}
     />
   );
-} 
+}

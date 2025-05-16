@@ -1,6 +1,6 @@
 import mongoose, { Schema, models } from 'mongoose';
 
-interface IChat {
+export interface IChat {
   _id: string;
   userId: string;
   agentId: Schema.Types.ObjectId;
@@ -27,6 +27,6 @@ const chatSchema = new Schema<IChat>({
     type: Date,
     default: Date.now,
   },
-});
+},{timestamps: true }); //for createdAt and updatedAt
 
 export const Chat = models.Chat || mongoose.model('Chat', chatSchema); 

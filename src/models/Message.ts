@@ -31,6 +31,6 @@ const messageSchema = new Schema<IMessage>({
     type: Date,
     default: Date.now,
   },
-});
+},{timestamps: true }); //for createdAt and updatedAt
 
 export const Message = models.Message || mongoose.model('Message', messageSchema); 

@@ -102,6 +102,7 @@ export async function HEAD(request: NextRequest) {
   }
 }
 
+
 // Update or delete a preference
 export async function PUT(request: NextRequest) {
   try {
@@ -151,8 +152,8 @@ export async function PUT(request: NextRequest) {
         return NextResponse.json({ error: 'Preference value is required' }, { status: 400 });
       }
       
-      // Create payload for new API
-      const preferences = {};
+      // ✅ FIXED: Typed preferences object
+      const preferences: Record<string, any> = {};
       preferences[key] = value;
       
       const updateResponse = await fetch(`${request.nextUrl.origin}/api/user/context`, {
@@ -177,4 +178,4 @@ export async function PUT(request: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}

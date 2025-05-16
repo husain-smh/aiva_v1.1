@@ -1,6 +1,6 @@
 import mongoose, { Schema, models } from 'mongoose';
 
-interface IUserFact {
+export interface IUserFact {
   _id: string;
   userId: string;
   facts: Record<string, string>;
@@ -23,6 +23,6 @@ const userFactSchema = new Schema<IUserFact>({
     type: Date,
     default: Date.now,
   },
-});
+},{timestamps: true }); //for createdAt and updatedAt
 
 export const UserFact = models.UserFact || mongoose.model('UserFact', userFactSchema); 

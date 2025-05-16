@@ -1,7 +1,7 @@
 import mongoose, { Schema, models } from 'mongoose';
 
-interface IChatScanRecord {
-  _id: string;
+export interface IChatScanRecord {
+  _id?: mongoose.Types.ObjectId | string; // Make _id optional with ?
   chatId: string;
   userId: string;
   lastScannedAt: Date;
@@ -37,6 +37,6 @@ const chatScanRecordSchema = new Schema<IChatScanRecord>({
     type: Number,
     default: 0,
   },
-});
+},{timestamps: true }); //for createdAt and updatedAt
 
 export const ChatScanRecord = models.ChatScanRecord || mongoose.model('ChatScanRecord', chatScanRecordSchema); 
