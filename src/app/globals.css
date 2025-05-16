@@ -284,3 +284,78 @@ code {
   padding: 12px 16px;
   margin: 8px 0;
 }
+
+/* Markdown styles */
+.markdown-content {
+  line-height: 1.6;
+}
+
+.markdown-h1,
+.markdown-h2,
+.markdown-h3,
+.markdown-h4,
+.markdown-h5,
+.markdown-h6 {
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  font-weight: 600;
+}
+
+.markdown-p {
+  margin-bottom: 1em;
+}
+
+.markdown-code {
+  background-color: var(--muted);
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+
+.markdown-pre {
+  background-color: var(--muted);
+  padding: 1em;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 1em 0;
+}
+
+.markdown-pre .markdown-code {
+  background-color: transparent;
+  padding: 0;
+}
+
+.markdown-ul,
+.markdown-ol {
+  margin: 1em 0;
+  padding-left: 2em;
+}
+
+.markdown-blockquote {
+  border-left: 4px solid var(--primary);
+  margin: 1em 0;
+  padding-left: 1em;
+  color: var(--muted-foreground);
+}
+
+.markdown-a {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.markdown-table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+}
+
+.markdown-th,
+.markdown-td {
+  border: 1px solid var(--border);
+  padding: 0.5em;
+  text-align: left;
+}
+
+.markdown-th {
+  background-color: var(--muted);
+}
