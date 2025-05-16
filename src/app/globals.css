@@ -180,17 +180,23 @@
   margin: 8px 0;
   border-radius: 8px;
   max-width: 85%;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .message-user {
   background-color: var(--primary);
   color: var(--primary-foreground);
   margin-left: auto;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .message-ai {
   color: var(--card-foreground);
   margin-right: auto;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 /* Input field styles */
@@ -230,7 +236,7 @@
 
 /* Sidebar styles */
 .sidebar {
-  width: 20%;
+  /* width: 20%;  <-- Removed to allow flexbox to control width */
   background-color: var(--sidebar);
   border-right: 1px solid var(--sidebar-border);
   padding: 16px;
@@ -238,9 +244,10 @@
 
 /* Main content area */
 .main-content {
-  width: 80%;
+  /* width: 80%;  <-- Removed to allow flexbox to control width */
   padding: 16px;
   background-color: var(--background);
+  min-width: 0;
 }
 
 /* Code block styles */

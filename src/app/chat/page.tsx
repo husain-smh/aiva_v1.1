@@ -36,10 +36,14 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex h-full">
-      <Sidebar user={session.user} />
-      <div className="flex-1 h-full overflow-hidden">
-        <Chat />
+    <div className="flex h-screen w-screen">
+      <div className="h-full" style={{ maxWidth: 350, width: '20%' }}>
+        <Sidebar user={session.user} />
+      </div>
+      <div className="flex-1 flex justify-center items-stretch">
+        <div className="w-full max-w-[900px] min-w-0 flex flex-col">
+          <Chat />
+        </div>
       </div>
     </div>
   );

@@ -117,8 +117,8 @@ const ChatWindow: FC<ChatWindowProps> = ({ chatId }) => {
   }, []);
 
   return (
-    <div className="flex flex-col h-full">
-      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+    <div className="flex flex-col h-full min-w-0">
+      <ScrollArea className="flex-1 p-4 min-w-0 overflow-x-auto" ref={scrollRef}>
         {[...messages, ...pendingMessages].map((msg, idx) => (
           <MessageBubble key={msg._id + idx} role={msg.role} content={msg.content} />
         ))}

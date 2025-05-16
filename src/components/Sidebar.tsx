@@ -235,7 +235,7 @@ const Sidebar: FC<SidebarProps> = memo(({ user }) => {
   return (
     <div
       className={`flex flex-col h-full border-r border-border bg-sidebar text-sidebar-foreground transition-all duration-300 ${
-        isCollapsed ? 'w-16' : 'w-64'
+        isCollapsed ? 'w-16' : 'w-1/5 min-w-[150px] max-w-[350px]'
       }`}
     >
       {/* Agent Creation Modal - always mounted */}
