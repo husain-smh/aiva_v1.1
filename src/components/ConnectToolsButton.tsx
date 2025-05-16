@@ -21,6 +21,7 @@ interface Service {
   integration_id: string;
   isConnected: boolean;
   isLoading?: boolean;
+  connectionStatus?: 'idle' | 'loading' | 'verifying' | 'failed';
 }
 
 interface Connection {
@@ -36,6 +37,8 @@ interface ConnectToolsButtonProps {
 export default function ConnectToolsButton({ onToolsConnected }: ConnectToolsButtonProps) {
   const { data: session } = useSession();
   const [isLoading, setIsLoading] = useState(true);
+  const [serviceErrors, setServiceErrors] = useState<Record<string, string>>({});
+  const [activeConnections, setActiveConnections] = useState<Set<string>>(new Set());
   const [services, setServices] = useState<Service[]>([
     {
       id: 'gmail',
@@ -43,6 +46,7 @@ export default function ConnectToolsButton({ onToolsConnected }: ConnectToolsBut
       integration_id: '66b951b0-e0bd-4179-83d6-ee2ff7a143e3',
       isConnected: false,
       isLoading: false,
+      connectionStatus: 'idle',
     },
     // {
     //   id: 'whatsapp',
@@ -64,6 +68,7 @@ export default function ConnectToolsButton({ onToolsConnected }: ConnectToolsBut
       integration_id: '5b0a4e2e-f007-4d56-907b-f6f3fd8c96e1',
       isConnected: false,
       isLoading: false,
+      connectionStatus: 'idle',
     },
     {
       id: 'googledrive',
@@ -71,6 +76,7 @@ export default function ConnectToolsButton({ onToolsConnected }: ConnectToolsBut
       integration_id: '494d1625-8233-4e5f-ad00-29898fd12af6',
       isConnected: false,
       isLoading: false,
+      connectionStatus: 'idle',
     },
     {
       id: 'googledocs',
@@ -78,6 +84,7 @@ export default function ConnectToolsButton({ onToolsConnected }: ConnectToolsBut
       integration_id: 'cd91fc63-9031-4b5e-af63-c768409feab3',
       isConnected: false,
       isLoading: false,
+      connectionStatus: 'idle',
     },
     {
       id: 'yousearch',
@@ -85,6 +92,7 @@ export default function ConnectToolsButton({ onToolsConnected }: ConnectToolsBut
       integration_id: '7432f833-7d87-495e-8e69-d1ea8a2c4d26',
       isConnected: false,
       isLoading: false,
+      connectionStatus: 'idle',
     },
     {
       id: 'linkedin',
@@ -92,6 +100,7 @@ export default function ConnectToolsButton({ onToolsConnected }: ConnectToolsBut
       integration_id: '4790d27a-b2fb-4f61-93a1-bd585e52a45a',
       isConnected: false,
       isLoading: false,
+      connectionStatus: 'idle',
     },
     // {
     //   id: 'slack',
@@ -113,8 +122,16 @@ export default function ConnectToolsButton({ onToolsConnected }: ConnectToolsBut
       integration_id: '876cd789-33d7-4cc0-b048-9b8be5a5a3f2',
       isConnected: false,
       isLoading: false,
+      connectionStatus: 'idle',
     }
   ]);
+
+  // Helper function to detect mobile devices
+  const isMobile = () => {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent
+    );
+  };
 
   // Load connected tools when component mounts
   useEffect(() => {
@@ -136,7 +153,8 @@ export default function ConnectToolsButton({ onToolsConnected }: ConnectToolsBut
         setServices(prev => 
           prev.map(service => ({
             ...service,
-            isConnected: connectedTools.includes(service.id)
+            isConnected: connectedTools.includes(service.id),
+            connectionStatus: 'idle'
           }))
         );
         
@@ -158,17 +176,157 @@ export default function ConnectToolsButton({ onToolsConnected }: ConnectToolsBut
     loadConnectedTools();
   }, [session, onToolsConnected]);
 
+  // Handle mobile redirect returns
+  useEffect(() => {
+    const pendingAuthStr = sessionStorage.getItem('pendingAuth');
+    if (!pendingAuthStr) return;
+    
+    try {
+      const pendingAuth = JSON.parse(pendingAuthStr);
+      
+      // Clean up immediately to prevent reprocessing
+      sessionStorage.removeItem('pendingAuth');
+      
+      // Check if auth has timed out (over 5 minutes old)
+      const authAge = Date.now() - pendingAuth.startTime;
+      if (authAge > 5 * 60 * 1000) {
+        console.log('Pending auth is too old, ignoring');
+        return;
+      }
+      
+      // Find the service
+      const service = services.find(s => s.id === pendingAuth.serviceId);
+      if (!service) return;
+      
+      // Set loading state and clear any errors
+      setServices(prev =>
+        prev.map(s =>
+          s.id === service.id ? { 
+            ...s, 
+            isLoading: true,
+            connectionStatus: 'verifying'
+          } : s
+        )
+      );
+      
+      setServiceErrors(prev => ({
+        ...prev,
+        [service.id]: ''
+      }));
+      
+      // Add to active connections set
+      setActiveConnections(prev => new Set(prev).add(service.id));
+      
+      // Check connection status
+      const checkStatus = async () => {
+        try {
+          const statusResponse = await fetch(`/api/services/status?connectionId=${pendingAuth.connectionId}`);
+          if (!statusResponse.ok) {
+            throw new Error('Failed to check connection status');
+          }
+          
+          const status = await statusResponse.json();
+          
+          if (status.status === 'ACTIVE') {
+            // Handle successful connection
+            setServices(prev =>
+              prev.map(s =>
+                s.id === service.id ? { 
+                  ...s, 
+                  isConnected: true, 
+                  isLoading: false,
+                  connectionStatus: 'idle' 
+                } : s
+              )
+            );
+            
+            // Save connected tool to user model for persistence
+            await fetch('/api/services/tools', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                tool: service.id,
+                connected: true
+              }),
+            });
+            
+            // Update connected tools
+            if (typeof onToolsConnected === 'function') {
+              onToolsConnected({ [service.id]: true });
+            }
+          } else {
+            // Handle failed or pending connection
+            throw new Error('Connection not active after redirect');
+          }
+        } catch (error: any) {
+          console.error('Error checking redirected auth status:', error);
+          
+          // Set error message
+          setServiceErrors(prev => ({
+            ...prev,
+            [service.id]: 'Connection could not be verified after redirection.'
+          }));
+          
+          // Reset loading
+          setServices(prev =>
+            prev.map(s =>
+              s.id === service.id ? { 
+                ...s, 
+                isConnected: false, 
+                isLoading: false,
+                connectionStatus: 'failed'
+              } : s
+            )
+          );
+        } finally {
+          // Remove from active connections
+          setActiveConnections(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(service.id);
+            return newSet;
+          });
+        }
+      };
+      
+      checkStatus();
+    } catch (e) {
+      console.error('Error processing pending auth:', e);
+      sessionStorage.removeItem('pendingAuth');
+    }
+  }, [services, onToolsConnected]);
+
   const handleServiceToggle = async (service: Service) => {
+    // Prevent multiple connection attempts for the same service
+    if (activeConnections.has(service.id)) {
+      console.log(`Connection attempt for ${service.id} already in progress`);
+      return;
+    }
+    
+    // Clear any previous errors for this service
+    setServiceErrors(prev => ({
+      ...prev,
+      [service.id]: ''
+    }));
+    
     try {
       if (!session?.user?.email) {
         console.error('No user email found');
         return;
       }
 
-      // Set loading state to true for this service
+      // Add to active connections set
+      setActiveConnections(prev => new Set(prev).add(service.id));
+
+      // Set initial loading state
       setServices(prev =>
         prev.map(s =>
-          s.id === service.id ? { ...s, isLoading: true } : s
+          s.id === service.id ? { 
+            ...s, 
+            isLoading: true, 
+            connectionStatus: 'loading' 
+          } : s
         )
       );
 
@@ -196,21 +354,64 @@ export default function ConnectToolsButton({ onToolsConnected }: ConnectToolsBut
         throw new Error('Invalid response from server');
       }
 
-      // Open the OAuth window
-      const width = 600;
-      const height = 600;
-      const left = window.screenX + (window.outerWidth - width) / 2;
-      const top = window.screenY + (window.outerHeight - height) / 2;
-      
+      // Variables to track popup state
       let popup: Window | null = null;
+      let popupCheckInterval: NodeJS.Timeout | null = null;
+      let popupClosedTime: number | null = null;
 
+      // Handle authentication differently based on device type
       if (data.redirectUrl) {
-        // Only open popup if redirect URL exists
-        popup = window.open(
-          data.redirectUrl,
-          'Connect Service',
-          `width=${width},height=${height},left=${left},top=${top}`
-        );
+        if (isMobile()) {
+          // For mobile, open in same window and set a session flag
+          sessionStorage.setItem('pendingAuth', JSON.stringify({
+            serviceId: service.id,
+            connectionId: data.connectionId,
+            startTime: Date.now()
+          }));
+          
+          // Open in same window - this will navigate away from current page
+          window.location.href = data.redirectUrl;
+          return; // Early return as we're navigating away
+        } else {
+          // Desktop popup logic
+          const width = 600;
+          const height = 600;
+          const left = window.screenX + (window.outerWidth - width) / 2;
+          const top = window.screenY + (window.outerHeight - height) / 2;
+          
+          popup = window.open(
+            data.redirectUrl,
+            'Connect Service',
+            `width=${width},height=${height},left=${left},top=${top}`
+          );
+          
+          if (!popup) {
+            throw new Error('Popup was blocked. Please allow popups for this site.');
+          }
+          
+          // Set up a check to detect if the popup is closed by the user
+          popupCheckInterval = setInterval(() => {
+            if (popup && popup.closed) {
+              if (popupCheckInterval) clearInterval(popupCheckInterval);
+              
+              // Record time when popup closed
+              popupClosedTime = Date.now();
+              
+              // Update state to show verifying instead of just loading
+              setServices(prev =>
+                prev.map(s =>
+                  s.id === service.id ? { 
+                    ...s, 
+                    isLoading: true,
+                    connectionStatus: 'verifying' 
+                  } : s
+                )
+              );
+              
+              console.log("Authorization popup was closed, verifying if auth completed...");
+            }
+          }, 1000);
+        }
       } else {
         console.log('No redirect needed, connection might be instant.');
       }
@@ -229,19 +430,33 @@ export default function ConnectToolsButton({ onToolsConnected }: ConnectToolsBut
           return statusResponse.json();
         };
 
-        // Poll every 5 seconds for up to 3 minutes
+        // Set timeout values
         const startTime = Date.now();
-        const timeout = 180 * 1000; // 3 minutes in milliseconds
+        const maxTimeout = 120 * 1000; // 2 minutes maximum total time
+        const popupClosedTimeout = 7 * 1000; // 7 seconds after popup closes (reduced from 30 seconds)
         const interval = 5000; // 5 seconds
 
         const pollConnection = async () => {
           const status = await checkStatus();
           
+          // If server returns a PENDING status with indication it needs more time
+          if (status.status === 'PENDING' && status.needsMoreTime) {
+            // Extend the grace period when server indicates it's still processing
+            if (popupClosedTime !== null) {
+              popupClosedTime = Date.now() - 15000; // Effectively extends the grace period
+            }
+          }
+          
           if (status.status === 'ACTIVE') {
             console.log(`Success! Connection is ACTIVE. ID: ${status.connectionId}`);
             setServices(prev =>
               prev.map(s =>
-                s.id === service.id ? { ...s, isConnected: true, isLoading: false } : s
+                s.id === service.id ? { 
+                  ...s, 
+                  isConnected: true, 
+                  isLoading: false,
+                  connectionStatus: 'idle' 
+                } : s
               )
             );
             
@@ -262,12 +477,21 @@ export default function ConnectToolsButton({ onToolsConnected }: ConnectToolsBut
             } else {
               console.warn('onToolsConnected is not a function or not provided');
             }
-            if (popup) popup.close();
+            
+            // Close popup if it's still open
+            if (popup && !popup.closed) popup.close();
+            
             return true;
           }
 
-          if (Date.now() - startTime > timeout) {
-            throw new Error('Connection timeout');
+          // If popup was closed and we've waited for popupClosedTimeout additional time
+          if (popupClosedTime !== null && (Date.now() - popupClosedTime > popupClosedTimeout)) {
+            throw new Error('auth_window_closed');
+          }
+          
+          // Overall timeout regardless of popup state
+          if (Date.now() - startTime > maxTimeout) {
+            throw new Error('timeout_exceeded');
           }
 
           return false;
@@ -278,23 +502,68 @@ export default function ConnectToolsButton({ onToolsConnected }: ConnectToolsBut
           await new Promise(resolve => setTimeout(resolve, interval));
         }
 
-      } catch (error) {
-        console.error("Connection did not become active within timeout or failed:", error);
+      } catch (error: any) {
+        console.error("Connection did not become active:", error);
+        
+        // Set user-friendly error message based on error type
+        let errorMessage = "Failed to connect service";
+        
+        if (error.message === 'auth_window_closed') {
+          errorMessage = "Authorization window closed before completion. Please try again and complete the process.";
+        } else if (error.message === 'timeout_exceeded') {
+          errorMessage = "Connection timed out. Please try again later.";
+        }
+        
+        setServiceErrors(prev => ({
+          ...prev,
+          [service.id]: errorMessage
+        }));
+        
         // Reset the toggle if connection fails
         setServices(prev =>
           prev.map(s =>
-            s.id === service.id ? { ...s, isConnected: false, isLoading: false } : s
+            s.id === service.id ? { 
+              ...s, 
+              isConnected: false, 
+              isLoading: false,
+              connectionStatus: 'failed'
+            } : s
           )
         );
+        
+        // Make sure popup is closed
+        if (popup && !popup.closed) popup.close();
+      } finally {
+        // Cleanup interval if it's still running
+        if (popupCheckInterval) clearInterval(popupCheckInterval);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error connecting service:', error);
+      
+      // Set generic error message
+      setServiceErrors(prev => ({
+        ...prev,
+        [service.id]: error.message || 'Failed to connect service'
+      }));
+      
       // Reset the toggle if there's an error
       setServices(prev =>
         prev.map(s =>
-          s.id === service.id ? { ...s, isConnected: false, isLoading: false } : s
+          s.id === service.id ? { 
+            ...s, 
+            isConnected: false, 
+            isLoading: false,
+            connectionStatus: 'failed'
+          } : s
         )
       );
+    } finally {
+      // Always remove from active connections set when done
+      setActiveConnections(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(service.id);
+        return newSet;
+      });
     }
   };
 
@@ -308,7 +577,11 @@ export default function ConnectToolsButton({ onToolsConnected }: ConnectToolsBut
       // Set loading state to true for this service
       setServices(prev =>
         prev.map(s =>
-          s.id === service.id ? { ...s, isLoading: true } : s
+          s.id === service.id ? { 
+            ...s, 
+            isLoading: true,
+            connectionStatus: 'loading'
+          } : s
         )
       );
 
@@ -327,7 +600,12 @@ export default function ConnectToolsButton({ onToolsConnected }: ConnectToolsBut
       // Update UI
       setServices(prev =>
         prev.map(s =>
-          s.id === service.id ? { ...s, isConnected: false, isLoading: false } : s
+          s.id === service.id ? { 
+            ...s, 
+            isConnected: false, 
+            isLoading: false,
+            connectionStatus: 'idle'
+          } : s
         )
       );
       
@@ -339,9 +617,18 @@ export default function ConnectToolsButton({ onToolsConnected }: ConnectToolsBut
       // Reset the toggle state
       setServices(prev =>
         prev.map(s =>
-          s.id === service.id ? { ...s, isLoading: false } : s
+          s.id === service.id ? { 
+            ...s, 
+            isLoading: false,
+            connectionStatus: 'failed'
+          } : s
         )
       );
+      
+      setServiceErrors(prev => ({
+        ...prev,
+        [service.id]: 'Failed to disconnect service'
+      }));
     }
   };
 
@@ -364,23 +651,35 @@ export default function ConnectToolsButton({ onToolsConnected }: ConnectToolsBut
             services.map((service) => (
               <div
                 key={service.id}
-                className="flex items-center justify-between py-2"
+                className="flex flex-col py-2"
               >
-                <span className="font-medium">{service.name}</span>
-                <div className="flex items-center">
-                  {service.isLoading && (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  )}
-                  <Switch
-                    checked={service.isConnected}
-                    onCheckedChange={() => 
-                      service.isConnected 
-                        ? handleDisconnectService(service)
-                        : handleServiceToggle(service)
-                    }
-                    disabled={service.isLoading}
-                  />
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">{service.name}</span>
+                  <div className="flex items-center">
+                    {service.isLoading && (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        {service.connectionStatus === 'verifying' && (
+                          <span className="text-xs text-gray-500 mr-2">Verifying...</span>
+                        )}
+                      </>
+                    )}
+                    <Switch
+                      checked={service.isConnected}
+                      onCheckedChange={() => 
+                        service.isConnected 
+                          ? handleDisconnectService(service)
+                          : handleServiceToggle(service)
+                      }
+                      disabled={service.isLoading || activeConnections.has(service.id)}
+                    />
+                  </div>
                 </div>
+                {serviceErrors[service.id] && (
+                  <div className="text-xs text-red-500 mt-1">
+                    {serviceErrors[service.id]}
+                  </div>
+                )}
               </div>
             ))
           )}
