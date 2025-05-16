@@ -14,13 +14,13 @@ import { BufferMemory } from 'langchain/memory';
 
 // Conditionally import chat-memory based on its availability
 let createChatMemory: any;
-try {
-  const chatMemoryModule = require('@/lib/memory/chat-memory');
-  createChatMemory = chatMemoryModule.createChatMemory;
-} catch (error) {
-  console.log('Chat memory module not available:', error);
-  createChatMemory = null;
-}
+// try {
+//   const chatMemoryModule = require('@/lib/memory/chat-memory');
+//   createChatMemory = chatMemoryModule.createChatMemory;
+// } catch (error) {
+//   console.log('Chat memory module not available:', error);
+//   createChatMemory = null;
+// }
 
 /**
  * Generate a concise three-word title from the first message

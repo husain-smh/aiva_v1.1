@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
         redirectUri: `${process.env.FRONTEND_URL}/chat`,
       });
       
-      console.log(`this is the redirect uri: ${process.env.FRONTEND_URL}/api/composio/callback`);
+
 
       if (connectionRequest?.redirectUrl) {
         console.log(`Received redirect URL: ${connectionRequest.redirectUrl}`);
