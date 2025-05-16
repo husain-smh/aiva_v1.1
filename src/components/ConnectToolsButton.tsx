@@ -13,12 +13,14 @@ import {
 } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { OpenAIToolSet } from 'composio-core';
+import { Loader2 } from 'lucide-react';
 
 interface Service {
   id: string;
   name: string;
   integration_id: string;
   isConnected: boolean;
+  isLoading?: boolean;
 }
 
 interface Connection {
@@ -39,69 +41,77 @@ export default function ConnectToolsButton({ onToolsConnected }: ConnectToolsBut
       name: 'Gmail',
       integration_id: '66b951b0-e0bd-4179-83d6-ee2ff7a143e3',
       isConnected: false,
+      isLoading: false,
     },
     {
       id: 'whatsapp',
       name: 'WhatsApp',
       integration_id: '8987897f-f1db-4b4e-a625-4ee51d9c9b98',
       isConnected: false,
+      isLoading: false,
     },
     {
       id: 'github',
       name: 'GitHub',
       integration_id: '3a08be07-a15e-4417-962b-037c2b9913f6',
       isConnected: false,
+      isLoading: false,
     },
     {
       id: 'calendar',
       name: 'Calendar',
       integration_id: '5b0a4e2e-f007-4d56-907b-f6f3fd8c96e1',
       isConnected: false,
+      isLoading: false,
     },
     {
       id: 'googledrive',
       name: 'GoogleDrive',
       integration_id: '494d1625-8233-4e5f-ad00-29898fd12af6',
       isConnected: false,
+      isLoading: false,
     },
     {
       id: 'googledocs',
       name: 'GoogleDocs',
       integration_id: 'cd91fc63-9031-4b5e-af63-c768409feab3',
       isConnected: false,
+      isLoading: false,
     },
     {
       id: 'yousearch',
       name: 'YouSearch',
       integration_id: '7432f833-7d87-495e-8e69-d1ea8a2c4d26',
       isConnected: false,
+      isLoading: false,
     },
     {
       id: 'linkedin',
       name: 'LinkedIn',
       integration_id: '4790d27a-b2fb-4f61-93a1-bd585e52a45a',
       isConnected: false,
-    }
-    ,
+      isLoading: false,
+    },
     {
       id: 'slack',
       name: 'Slack',
       integration_id: 'df352f08-f7cb-4c4f-859a-ee58214e1268',
       isConnected: false,
-    }
-    ,
+      isLoading: false,
+    },
     {
       id: 'jira',
       name: 'Jira',
       integration_id: 'eb2a8c6c-1dba-4a99-8c9d-637e26a0f5f0',
       isConnected: false,
-    }
-    ,
+      isLoading: false,
+    },
     {
       id: 'googlesheets',
       name: 'GoogleSheets',
       integration_id: '876cd789-33d7-4cc0-b048-9b8be5a5a3f2',
       isConnected: false,
+      isLoading: false,
     }
   ]);
 
@@ -111,6 +121,13 @@ export default function ConnectToolsButton({ onToolsConnected }: ConnectToolsBut
         console.error('No user email found');
         return;
       }
+
+      // Set loading state to true for this service
+      setServices(prev =>
+        prev.map(s =>
+          s.id === service.id ? { ...s, isLoading: true } : s
+        )
+      );
 
       // Initiate the connection through our API
       const connectResponse = await fetch('/api/services/connect', {
@@ -144,16 +161,16 @@ export default function ConnectToolsButton({ onToolsConnected }: ConnectToolsBut
       
       let popup: Window | null = null;
 
-if (data.redirectUrl) {
-  // Only open popup if redirect URL exists
-  popup = window.open(
-    data.redirectUrl,
-    'Connect Service',
-    `width=${width},height=${height},left=${left},top=${top}`
-  );
-} else {
-  console.log('No redirect needed, connection might be instant.');
-}
+      if (data.redirectUrl) {
+        // Only open popup if redirect URL exists
+        popup = window.open(
+          data.redirectUrl,
+          'Connect Service',
+          `width=${width},height=${height},left=${left},top=${top}`
+        );
+      } else {
+        console.log('No redirect needed, connection might be instant.');
+      }
 
       // Wait for the connection to become active
       try {
@@ -181,10 +198,14 @@ if (data.redirectUrl) {
             console.log(`Success! Connection is ACTIVE. ID: ${status.connectionId}`);
             setServices(prev =>
               prev.map(s =>
-                s.id === service.id ? { ...s, isConnected: true } : s
+                s.id === service.id ? { ...s, isConnected: true, isLoading: false } : s
               )
             );
-            onToolsConnected({ [service.id]: true });
+            if (typeof onToolsConnected === 'function') {
+              onToolsConnected({ [service.id]: true });
+            } else {
+              console.warn('onToolsConnected is not a function or not provided');
+            }
             if (popup) popup.close();
             return true;
           }
@@ -206,7 +227,7 @@ if (data.redirectUrl) {
         // Reset the toggle if connection fails
         setServices(prev =>
           prev.map(s =>
-            s.id === service.id ? { ...s, isConnected: false } : s
+            s.id === service.id ? { ...s, isConnected: false, isLoading: false } : s
           )
         );
       }
@@ -215,7 +236,7 @@ if (data.redirectUrl) {
       // Reset the toggle if there's an error
       setServices(prev =>
         prev.map(s =>
-          s.id === service.id ? { ...s, isConnected: false } : s
+          s.id === service.id ? { ...s, isConnected: false, isLoading: false } : s
         )
       );
     }
@@ -237,10 +258,16 @@ if (data.redirectUrl) {
               className="flex items-center justify-between py-2"
             >
               <span className="font-medium">{service.name}</span>
-              <Switch
-                checked={service.isConnected}
-                onCheckedChange={() => handleServiceToggle(service)}
-              />
+              <div className="flex items-center">
+                {service.isLoading && (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                )}
+                <Switch
+                  checked={service.isConnected}
+                  onCheckedChange={() => handleServiceToggle(service)}
+                  disabled={service.isLoading}
+                />
+              </div>
             </div>
           ))}
         </ScrollArea>
