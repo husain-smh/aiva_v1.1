@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -35,6 +35,7 @@ interface ConnectToolsButtonProps {
 
 export default function ConnectToolsButton({ onToolsConnected }: ConnectToolsButtonProps) {
   const { data: session } = useSession();
+  const [isLoading, setIsLoading] = useState(true);
   const [services, setServices] = useState<Service[]>([
     {
       id: 'gmail',
@@ -114,6 +115,48 @@ export default function ConnectToolsButton({ onToolsConnected }: ConnectToolsBut
       isLoading: false,
     }
   ]);
+
+  // Load connected tools when component mounts
+  useEffect(() => {
+    async function loadConnectedTools() {
+      if (!session?.user) return;
+      
+      try {
+        setIsLoading(true);
+        const response = await fetch('/api/services/tools');
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch connected tools');
+        }
+        
+        const data = await response.json();
+        const connectedTools = data.connectedTools || [];
+        
+        // Update services state with connected tools
+        setServices(prev => 
+          prev.map(service => ({
+            ...service,
+            isConnected: connectedTools.includes(service.id)
+          }))
+        );
+        
+        // Update parent component with connected tools
+        if (typeof onToolsConnected === 'function') {
+          const toolsObj = connectedTools.reduce((acc: Record<string, boolean>, tool: string) => {
+            acc[tool] = true;
+            return acc;
+          }, {});
+          onToolsConnected(toolsObj);
+        }
+      } catch (error) {
+        console.error('Error loading connected tools:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    
+    loadConnectedTools();
+  }, [session, onToolsConnected]);
 
   const handleServiceToggle = async (service: Service) => {
     try {
@@ -201,6 +244,19 @@ export default function ConnectToolsButton({ onToolsConnected }: ConnectToolsBut
                 s.id === service.id ? { ...s, isConnected: true, isLoading: false } : s
               )
             );
+            
+            // Save connected tool to user model for persistence
+            await fetch('/api/services/tools', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                tool: service.id,
+                connected: true
+              }),
+            });
+            
             if (typeof onToolsConnected === 'function') {
               onToolsConnected({ [service.id]: true });
             } else {
@@ -242,6 +298,53 @@ export default function ConnectToolsButton({ onToolsConnected }: ConnectToolsBut
     }
   };
 
+  const handleDisconnectService = async (service: Service) => {
+    try {
+      if (!session?.user?.email) {
+        console.error('No user email found');
+        return;
+      }
+
+      // Set loading state to true for this service
+      setServices(prev =>
+        prev.map(s =>
+          s.id === service.id ? { ...s, isLoading: true } : s
+        )
+      );
+
+      // Save disconnected tool status to user model for persistence
+      await fetch('/api/services/tools', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tool: service.id,
+          connected: false
+        }),
+      });
+
+      // Update UI
+      setServices(prev =>
+        prev.map(s =>
+          s.id === service.id ? { ...s, isConnected: false, isLoading: false } : s
+        )
+      );
+      
+      if (typeof onToolsConnected === 'function') {
+        onToolsConnected({ [service.id]: false });
+      }
+    } catch (error) {
+      console.error('Error disconnecting service:', error);
+      // Reset the toggle state
+      setServices(prev =>
+        prev.map(s =>
+          s.id === service.id ? { ...s, isLoading: false } : s
+        )
+      );
+    }
+  };
+
   return (
     <Sheet>
       <SheetTrigger asChild>
@@ -252,24 +355,35 @@ export default function ConnectToolsButton({ onToolsConnected }: ConnectToolsBut
           <SheetTitle>Available Services</SheetTitle>
         </SheetHeader>
         <ScrollArea className="flex-1 w-full">
-          {services.map((service) => (
-            <div
-              key={service.id}
-              className="flex items-center justify-between py-2"
-            >
-              <span className="font-medium">{service.name}</span>
-              <div className="flex items-center">
-                {service.isLoading && (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                )}
-                <Switch
-                  checked={service.isConnected}
-                  onCheckedChange={() => handleServiceToggle(service)}
-                  disabled={service.isLoading}
-                />
-              </div>
+          {isLoading ? (
+            <div className="flex justify-center items-center py-4">
+              <Loader2 className="h-6 w-6 animate-spin" />
+              <span className="ml-2">Loading connections...</span>
             </div>
-          ))}
+          ) : (
+            services.map((service) => (
+              <div
+                key={service.id}
+                className="flex items-center justify-between py-2"
+              >
+                <span className="font-medium">{service.name}</span>
+                <div className="flex items-center">
+                  {service.isLoading && (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  )}
+                  <Switch
+                    checked={service.isConnected}
+                    onCheckedChange={() => 
+                      service.isConnected 
+                        ? handleDisconnectService(service)
+                        : handleServiceToggle(service)
+                    }
+                    disabled={service.isLoading}
+                  />
+                </div>
+              </div>
+            ))
+          )}
         </ScrollArea>
       </SheetContent>
     </Sheet>

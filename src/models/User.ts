@@ -5,6 +5,7 @@ interface IUser {
   name: string;
   email: string;
   image: string;
+  connectedApps?: string[];
 }
 
 const userSchema = new Schema<IUser>({
@@ -18,6 +19,10 @@ const userSchema = new Schema<IUser>({
     unique: true,
   },
   image: String,
+  connectedApps: {
+    type: [String],
+    default: [],
+  },
 }, { timestamps: true });
 
 export const User = models.User || mongoose.model('User', userSchema); 
