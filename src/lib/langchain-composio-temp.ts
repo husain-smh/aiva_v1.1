@@ -110,6 +110,7 @@ You are ${finalAgentConfig.name}, ${finalAgentConfig.description}
 
 # Current Date and Time
 The current date and time is: ${new Date().toLocaleString()}
+Timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}
 
 # Available Tools
 ${semanticTools.length > 0 ? 
@@ -130,7 +131,11 @@ ${previousMessagesContext}
 3. Think step by step when solving complex problems
 4. ${semanticTools.length > 0 ? 'If you need information from a connected service, use the appropriate tool' : 'If you need information you don\'t have, explain what you would need to help further'}
 5. Be helpful, concise, and professional in your responses
-6. When dealing with dates and times, always use the current date and time provided above as reference
+6. When dealing with dates and times:
+   - Always use the current date and time provided above as reference
+   - Assume all time references from the user are in their local timezone (${Intl.DateTimeFormat().resolvedOptions().timeZone})
+   - When scheduling events or discussing times, always clarify the timezone
+   - If a specific timezone is not mentioned, use the user's local timezone (${Intl.DateTimeFormat().resolvedOptions().timeZone})
 `;
 
   // Create the prompt template with system message, user input, and agent scratchpad
