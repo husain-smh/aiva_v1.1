@@ -2,6 +2,8 @@ import { AuthOptions, SessionStrategy } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import { connectToDatabase } from '@/lib/mongodb';
 import { User } from '@/models/User';
+import { Agent } from '@/models/Agent';
+import { Chat } from '@/models/Chat';
 
 export const authOptions: AuthOptions = {
   providers: [
@@ -24,6 +26,23 @@ export const authOptions: AuthOptions = {
             image: user.image,
           });
           console.log('Created new user with ID:', dbUser._id);
+
+          // --- Create default "Personal" agent ---
+          const agent = await Agent.create({
+            name: "Personal",
+            description: "You are a personal agent that has to help me with my daily tasks, like emails, calendar, basic research, reminders, etc.",
+            context: `My name is ${dbUser.name}, and you are my personal assistant`,
+            instructions: "be direct, i like clear outputs",
+            userId: dbUser._id,
+            connectedApps: [],
+          });
+
+          // --- Create a chat for this agent ---
+          await Chat.create({
+            userId: dbUser._id,
+            agentId: agent._id,
+            title: "Personal Assistant"
+          });
         }
 
         token._id = dbUser._id.toString();
