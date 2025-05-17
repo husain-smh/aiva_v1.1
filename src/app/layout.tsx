@@ -19,7 +19,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className={`${inter.className} h-screen flex flex-col`}>
+      <body 
+        className={`${inter.className} h-screen flex flex-col`}
+        suppressHydrationWarning
+      >
         <Providers>
           <DashboardLayout>
             <main className="flex flex-col flex-1 h-full overflow-hidden">

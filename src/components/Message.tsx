@@ -3,7 +3,8 @@
 import { FC, useState, ReactNode } from 'react';
 import { Copy } from 'lucide-react';
 import { Button } from './ui/button';
-import { Card } from './ui/card';
+import ReactMarkdown from 'react-markdown';
+import { containsMarkdown } from '@/utils/markdown';
 
 interface MessageProps {
   role: 'user' | 'assistant';
@@ -14,6 +15,7 @@ export default function Message({ role, content }: MessageProps) {
   const isUser = role === 'user';
   const [showCopy, setShowCopy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const isMarkdown = containsMarkdown(content);
 
   const handleCopy = async () => {
     try {
@@ -25,27 +27,25 @@ export default function Message({ role, content }: MessageProps) {
     }
   };
 
-  // Function to convert URLs in text to clickable links
+  // Function to convert URLs in text to clickable links (only for plain text)
   const linkifyText = (text: string): ReactNode[] => {
-    // Regular expression to match URLs
+    if (isMarkdown) {
+      return [
+        <div key="markdown" className="markdown-content">
+          <ReactMarkdown>{text}</ReactMarkdown>
+        </div>
+      ];
+    }
+    
     const urlRegex = /(https?:\/\/[^\s]+)/g;
-    
-    // Split the text by URLs
     const parts = text.split(urlRegex);
-    
-    // Find all URLs in the text
     const urls = text.match(urlRegex) || [];
-    
-    // Combine parts and URLs
     const result: ReactNode[] = [];
     
     for (let i = 0; i < parts.length; i++) {
-      // Add the text part
       if (parts[i]) {
         result.push(<span key={`text-${i}`}>{parts[i]}</span>);
       }
-      
-      // Add the URL part (if there is one)
       if (urls[i - Math.floor(i/2)]) {
         const url = urls[i - Math.floor(i/2)];
         result.push(
@@ -73,7 +73,7 @@ export default function Message({ role, content }: MessageProps) {
       style={{ position: 'relative' }}
     >
       {isUser ? (
-        <div className="user-message text-foreground break-words whitespace-pre-wrap max-w-[70%] min-w-[40px]">
+        <div className="user-message text-foreground break-words whitespace-pre-wrap max-w-[70%] ml-auto min-w-[40px]">
           {linkifyText(content)}
           {showCopy && (
             <Button
@@ -90,7 +90,7 @@ export default function Message({ role, content }: MessageProps) {
           )}
         </div>
       ) : (
-        <div className="rounded-lg p-3 text-sm text-card-foreground break-words whitespace-pre-wrap max-w-[70%] min-w-[40px]">
+        <div className="rounded-lg p-3 text-sm text-card-foreground break-words whitespace-pre-wrap max-w-[70%] mr-auto min-w-[40px]">
           {linkifyText(content)}
         </div>
       )}
