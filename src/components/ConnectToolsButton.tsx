@@ -172,9 +172,10 @@ export default function ConnectToolsButton({ onToolsConnected }: ConnectToolsBut
         setIsLoading(false);
       }
     }
-    
     loadConnectedTools();
-  }, [session, onToolsConnected]);
+    // Note: onToolsConnected is intentionally omitted from the dependency array to prevent infinite re-renders.
+    // If you need to include it, make sure to memoize it in the parent component using useCallback.
+  }, [session]);
 
   // Handle mobile redirect returns
   useEffect(() => {
@@ -295,7 +296,7 @@ export default function ConnectToolsButton({ onToolsConnected }: ConnectToolsBut
       console.error('Error processing pending auth:', e);
       sessionStorage.removeItem('pendingAuth');
     }
-  }, [services, onToolsConnected]);
+  }, [onToolsConnected]);
 
   const handleServiceToggle = async (service: Service) => {
     // Prevent multiple connection attempts for the same service

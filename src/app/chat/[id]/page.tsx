@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Sidebar from '@/components/Sidebar';
@@ -20,11 +20,11 @@ export default function ChatById() {
   const [connectedTools, setConnectedTools] = useState<Record<string, boolean>>({});
 
   // Handler for tools connection status
-  const handleToolsConnected = (tools: Record<string, boolean>) => {
+  const handleToolsConnected = useCallback((tools: Record<string, boolean>) => {
     setConnectedTools(tools);
     // Optional: log or act based on connected tools
     console.log('Connected tools:', tools);
-  };
+  }, []);
 
   // Redirect to login if not authenticated
   useEffect(() => {
