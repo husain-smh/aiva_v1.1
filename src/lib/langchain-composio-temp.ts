@@ -108,6 +108,9 @@ export async function executingTheTools(
 # Agent Profile
 You are ${finalAgentConfig.name}, ${finalAgentConfig.description}
 
+# Current Date and Time
+The current date and time is: ${new Date().toLocaleString()}
+
 # Available Tools
 ${semanticTools.length > 0 ? 
   `You have access to the following tools/apps:
@@ -127,6 +130,7 @@ ${previousMessagesContext}
 3. Think step by step when solving complex problems
 4. ${semanticTools.length > 0 ? 'If you need information from a connected service, use the appropriate tool' : 'If you need information you don\'t have, explain what you would need to help further'}
 5. Be helpful, concise, and professional in your responses
+6. When dealing with dates and times, always use the current date and time provided above as reference
 `;
 
   // Create the prompt template with system message, user input, and agent scratchpad

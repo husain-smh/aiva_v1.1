@@ -32,7 +32,23 @@ export default function Message({ role, content }: MessageProps) {
     if (isMarkdown) {
       return [
         <div key="markdown" className="markdown-content">
-          <ReactMarkdown>{text}</ReactMarkdown>
+          <ReactMarkdown
+            components={{
+              a: ({ node, ...props }) => (
+                <a
+                  {...props}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    window.open(props.href, '_blank')?.focus();
+                  }}
+                />
+              ),
+            }}
+          >
+            {text}
+          </ReactMarkdown>
         </div>
       ];
     }
@@ -55,6 +71,10 @@ export default function Message({ role, content }: MessageProps) {
             target="_blank" 
             rel="noopener noreferrer"
             className="text-blue-500 hover:underline"
+            onClick={(e) => {
+              e.preventDefault();
+              window.open(url, '_blank')?.focus();
+            }}
           >
             {url}
           </a>
